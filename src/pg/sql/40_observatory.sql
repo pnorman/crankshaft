@@ -114,32 +114,107 @@ DECLARE
 BEGIN
 
 
-geom_table_name := OBS_GEOM_TABLE(geometry_level);
-data_table_info := OBS_GET_COLUMN_DATA(geometry_level, column_id, time_span);
+  geom_table_name := OBS_GEOM_TABLE(geometry_level);
+  data_table_info := OBS_GET_COLUMN_DATA(geometry_level, column_id, time_span);
 
-IF data_table_info.aggregate != 'sum' THEN
-  RAISE EXCEPTION 'Target column is not a sum value, cant aggregate!'
-        USING HINT = 'Pick a column which is a sum or a count';
-end if;
+  IF ST_GeometryType(geom) = 'ST_Point' then
+    result  = OBS_AUGMENT_POINTS(geom, geom_table_name, data_table_info);
+  ELSIF ST_GeometryType(geom) in ('ST_Polygon', 'ST_MultiPolygon') then
+    result  = OBS_AUGMENT_POLYGONS(geom, geom_table_name, data_table_info);
+  end if;
 
-EXECUTE format('
-  WITH _overlaps AS(
-    select  ST_AREA(ST_INTERSECTION($1, a.the_geom))/ST_AREA(a.the_geom) overlap_fraction, geoid
-    from %I as a
-    where $1 && a.the_geom
-  ),
-  values AS(
-    select geoid, %I as val from %I
-  )
+  if result is null then
+    result= 0;
+  end if;
 
-  select sum(overlap_fraction * COALESCE(val, 0))
-  from _overlaps, values
-  where substr(values.geoid , 8) = _overlaps.geoid
-  ' , geom_table_name,data_table_info.colname, data_table_info.tablename )
-USING geom
-INTO result;
-
-RETURN result;
+  return result;
 END;
-
 $$  LANGUAGE plpgsql
+
+-- IF the variable of interest is just a rate return it as such, othewise normalize
+-- it to the census block area and return that
+CREATE OR REPLACE FUNCTION OBS_AUGMENT_POINTS(
+  geom geometry,
+  geom_table_name text,
+  data_table_info OBS_COLUMN_DATA
+) RETURNS NUMERIC AS $$
+DECLARE
+  result Numeric;
+  query  text;
+BEGIN
+
+  if data_table_info.aggregate != 'sum' then
+    query = format('
+      select %I
+      from %I, %I
+      where substr(%I.geoid , 8) = %I.geoid
+      and  %I.the_geom && $1
+      ' ,
+      data_table_info.colname,
+      data_table_info.tablename,
+      geom_table_name,
+      data_table_info.tablename,
+      geom_table_name,
+      geom_table_name);
+  else
+    query = format('
+      select %I/ST_AREA(%I.the_geom::geography)
+      from %I, %I
+      where substr(%I.geoid , 8) = %I.geoid
+      and  %I.the_geom && $1
+      ',
+      data_table_info.colname,
+      geom_table_name,
+      data_table_info.tablename,
+      geom_table_name,
+      data_table_info.tablename,
+      geom_table_name,
+      geom_table_name);
+
+  end if;
+
+
+  EXECUTE query
+    USING geom
+    INTO result;
+
+  RETURN result;
+END
+$$ LANGUAGE plpgsql
+
+CREATE OR REPLACE FUNCTION OBS_AUGMENT_POLYGONS (
+  geom geometry,
+  geom_table_name text,
+  data_table_info OBS_COLUMN_DATA
+) RETURNS NUMERIC AS $$
+DECLARE
+  result numeric;
+BEGIN
+
+  IF data_table_info.aggregate != 'sum' THEN
+    RAISE EXCEPTION 'Target column is not a sum value, cant aggregate!'
+          USING HINT = 'Pick a column which is a sum or a count';
+  end if;
+
+
+  EXECUTE format('
+    WITH _overlaps AS(
+      select  ST_AREA(ST_INTERSECTION($1, a.the_geom))/ST_AREA(a.the_geom) overlap_fraction, geoid
+      from %I as a
+      where $1 && a.the_geom
+    ),
+    values AS(
+      select geoid, %I as val from %I
+    )
+
+    select sum(overlap_fraction * COALESCE(val, 0))
+    from _overlaps, values
+    where substr(values.geoid , 8) = _overlaps.geoid
+    ' , geom_table_name,data_table_info.colname, data_table_info.tablename )
+  USING geom
+  INTO result;
+
+  RETURN result;
+
+END;
+$$ LANGUAGE plpgsql
