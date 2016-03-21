@@ -28,7 +28,7 @@ BEGIN
   return result;
 
 END
-$$  LANGUAGE plpgsql
+$$  LANGUAGE plpgsql;
 
 -- A type for use with the OBS_GET_COLUMN_DATA function
 CREATE TYPE OBS_COLUMN_DATA as(colname text , tablename text ,aggregate text);
@@ -60,7 +60,7 @@ BEGIN
   INTO result;
   RETURN result;
 END
-$$ LANGUAGE plpgsql
+$$ LANGUAGE plpgsql;
 
 
 CREATE OR REPLACE FUNCTION OBS_LOOKUP_CENSUS_HUMAN(
@@ -76,9 +76,9 @@ BEGIN
     INTO result;
     RETURN result;
 END
-$$ LANGUAGE plpgsql
+$$ LANGUAGE plpgsql;
 
-CREATE OR REPLACE FUNCTION OBS_AUGMENT_CENSUS(
+CREATE OR REPLACE FUNCTION OBS_GET_CENSUS_VARIABLE(
   geom geometry,
   column_name text,
   time_span text DEFAULT '2009 - 2013',
@@ -95,8 +95,34 @@ BEGIN
   end if;
   return OBS_AUGMENT(geom, column_id, time_span, geometry_level);
 END;
-$$ LANGUAGE plpgsql
+$$ LANGUAGE plpgsql;
 
+CREATE OR REPLACE FUNCTION OBS_AUGMENT_WITH_CENSUS_VARIABLE(
+  table_name text,
+  variable_name text
+) RETURNS VOID AS $$
+BEGIN
+  BEGIN
+
+    EXECUTE format('ALTER TABLE %I add column %I NUMERIC', table_name,variable_name);
+  EXCEPTION
+    WHEN duplicate_column then
+      RAISE NOTICE 'Column does not exist';
+    END;
+
+
+
+  EXECUTE format('UPDATE %I
+    SET %I = v.%I
+    FROM (
+      select cartodb_id, OBS_GET_CENSUS_VARIABLE(the_geom, %L) as %I
+      from %I
+    ) v
+    WHERE v.cartodb_id= %I.cartodb_id;
+  ', table_name, variable_name,variable_name,variable_name,variable_name,table_name,table_name);
+
+END;
+$$ LANGUAGE plpgsql ;
 
 
 -- OBS_AUGMENT takes a target geometry, the column_id that we want to augment with, the time span and a geometry level
@@ -129,7 +155,7 @@ BEGIN
 
   return result;
 END;
-$$  LANGUAGE plpgsql
+$$  LANGUAGE plpgsql;
 
 -- IF the variable of interest is just a rate return it as such, othewise normalize
 -- it to the census block area and return that
@@ -180,7 +206,7 @@ BEGIN
 
   RETURN result;
 END
-$$ LANGUAGE plpgsql
+$$ LANGUAGE plpgsql;
 
 CREATE OR REPLACE FUNCTION OBS_AUGMENT_POLYGONS (
   geom geometry,
@@ -216,48 +242,5 @@ BEGIN
 
   RETURN result;
 
-END;
-$$ LANGUAGE plpgsql
-
-
--- Add all foreign tables in the observatory
-CREATE OR REPLACE FUNCTION OBS_INIT_TABLES ()
-RETURNS BOOLEAN
-AS $$
-DECLARE
-  metatables TEXT[] := ARRAY['bmd_table', 'bmd_tag', 'bmd_column',
-                           'bmd_column_table', 'bmd_column_to_column',
-                           'bmd_column_tag'];
-  table_name TEXT;
-BEGIN
-  -- Add all meta tables
-  FOREACH table_name IN ARRAY metatables
-  LOOP
-    PERFORM OBS_INIT_TABLE(table_name);
-  END LOOP;
-
-  -- Add all data tables
-  FOR table_name in SELECT tablename FROM observatory.bmd_table
-  LOOP
-    PERFORM OBS_INIT_TABLE(table_name);
-  END LOOP;
-  RETURN True;
-END;
-$$ LANGUAGE plpgsql;
-
--- Adds one foreign table to this user's account
-CREATE OR REPLACE FUNCTION OBS_INIT_TABLE (
-  tablename TEXT
-)
-RETURNS BOOLEAN
-AS $$ BEGIN
-  EXECUTE FORMAT('DROP FOREIGN TABLE IF EXISTS observatory.%I', tablename);
-    BEGIN
-      PERFORM CDB_Add_Remote_Table('observatory', tablename);
-    EXCEPTION
-      WHEN undefined_table THEN
-        RAISE NOTICE 'Cannot add table %, it is in metadata but does not exist', tablename;
-    END;
-  RETURN True;
 END;
 $$ LANGUAGE plpgsql;
