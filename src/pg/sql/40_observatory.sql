@@ -1,6 +1,6 @@
 -- Returns a list of avaliable geometry columns
 CREATE OR REPLACE FUNCTION OBS_LIST_GEOM_COLUMNS() returns TABLE(column_id text) as $$
-  SELECT id FROM bmd_column WHERE type ILIKE 'geometry';
+  SELECT id FROM observatory.bmd_column WHERE type ILIKE 'geometry';
 $$
 LANGUAGE SQL IMMUTABLE;
 
@@ -13,10 +13,10 @@ DECLARE
   result text;
 BEGIN
   EXECUTE '
-    SELECT tablename FROM bmd_table
+    SELECT tablename FROM observatory.bmd_table
     WHERE id IN (
       SELECT table_id
-      FROM bmd_column_table coltable, bmd_column col
+      FROM observatory.bmd_column_table coltable, observatory.bmd_column col
       WHERE type ILIKE ''geometry''
         AND coltable.column_id = col.id
         AND col.id = $1
@@ -44,13 +44,13 @@ BEGIN
   EXECUTE '
   WITH geomref AS (
     SELECT t.table_id id
-    FROM bmd_column_to_column c2c, bmd_column_table t
+    FROM observatory.bmd_column_to_column c2c, observatory.bmd_column_table t
     WHERE c2c.reltype = ''geom_ref''
       AND c2c.source_id = $1
       AND c2c.target_id = t.column_id
   )
   SELECT colname, tablename, aggregate
-  FROM bmd_column c, bmd_column_table ct, bmd_table t
+  FROM observatory.bmd_column c, observatory.bmd_column_table ct, observatory.bmd_table t
   WHERE c.id = ct.column_id
     AND t.id = ct.table_id
     AND c.id = $2
@@ -72,7 +72,7 @@ DECLARE
   column_id text;
   result text;
 BEGIN
-    EXECUTE format('select column_id from bmd_column_table where colname = %L  and table_id = %L limit 1', column_name,table_name)
+    EXECUTE format('select column_id from observatory.bmd_column_table where colname = %L  and table_id = %L limit 1', column_name,table_name)
     INTO result;
     RETURN result;
 END
@@ -146,7 +146,7 @@ BEGIN
   if data_table_info.aggregate != 'sum' then
     query = format('
       select %I
-      from %I, %I
+      from observatory.%I, observatory.%I
       where substr(%I.geoid , 8) = %I.geoid
       and  %I.the_geom && $1
       ' ,
@@ -159,7 +159,7 @@ BEGIN
   else
     query = format('
       select %I/ST_AREA(%I.the_geom::geography)
-      from %I, %I
+      from observatory.%I, observatory.%I
       where substr(%I.geoid , 8) = %I.geoid
       and  %I.the_geom && $1
       ',
@@ -200,7 +200,7 @@ BEGIN
   EXECUTE format('
     WITH _overlaps AS(
       select  ST_AREA(ST_INTERSECTION($1, a.the_geom))/ST_AREA(a.the_geom) overlap_fraction, geoid
-      from %I as a
+      from observatory.%I as a
       where $1 && a.the_geom
     ),
     values AS(
