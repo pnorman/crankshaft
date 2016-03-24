@@ -1,3 +1,4 @@
+
 -- Returns a list of avaliable geometry columns
 CREATE OR REPLACE FUNCTION OBS_LIST_GEOM_COLUMNS() returns TABLE(column_id text) as $$
   SELECT id FROM observatory.bmd_column WHERE type ILIKE 'geometry';
@@ -62,6 +63,24 @@ BEGIN
 END
 $$ LANGUAGE plpgsql;
 
+CREATE OR REPLACE FUNCTION OBS_SEARCH(
+  search_term text
+)
+RETURNS TABLE(description text, name text, aggregate text,source text )  as $$
+BEGIN
+  RETURN QUERY
+  EXECUTE format($string$
+              SELECT description,
+                name,
+                  aggregate,
+                  replace(split_part(id,'".', 1),'"', '') source
+                  FROM observatory.bmd_column
+                  where name ilike '%%%L%%'
+                  or description ilike '%%%L%%'
+                $string$, search_term, search_term);
+  RETURN;
+END
+$$ LANGUAGE plpgsql;
 
 CREATE OR REPLACE FUNCTION OBS_LOOKUP_CENSUS_HUMAN(
   column_name text,
@@ -78,9 +97,9 @@ BEGIN
 END
 $$ LANGUAGE plpgsql;
 
-CREATE OR REPLACE FUNCTION OBS_GET_CENSUS_VARIABLE(
+CREATE OR REPLACE FUNCTION OBS_Augment_Census(
   geom geometry,
-  column_name text,
+  dimension_name text,
   time_span text DEFAULT '2009 - 2013',
   geometry_level text DEFAULT '"us.census.tiger".block_group'
   )
@@ -88,7 +107,7 @@ RETURNS numeric as $$
 DECLARE
   column_id text;
 BEGIN
-  column_id = OBS_LOOKUP_CENSUS_HUMAN(column_name);
+  column_id = OBS_LOOKUP_CENSUS_HUMAN(dimension_name);
   if column_id is null then
     RAISE EXCEPTION 'Column does not exist'
         USING HINT = 'Try using OBS_CENSUS_COLUMN_LIST to get a list of avaliable data';
@@ -97,29 +116,27 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
-CREATE OR REPLACE FUNCTION OBS_AUGMENT_WITH_CENSUS_VARIABLE(
+CREATE OR REPLACE FUNCTION OBS_AUGMENT_TABLE_WITH_CENSUS(
   table_name text,
-  variable_name text
+  dimension_name text
 ) RETURNS VOID AS $$
 BEGIN
   BEGIN
 
-    EXECUTE format('ALTER TABLE %I add column %I NUMERIC', table_name,variable_name);
+    EXECUTE format('ALTER TABLE %I add column %I NUMERIC', table_name,dimension_name);
   EXCEPTION
     WHEN duplicate_column then
       RAISE NOTICE 'Column does not exist';
     END;
 
-
-
   EXECUTE format('UPDATE %I
     SET %I = v.%I
     FROM (
-      select cartodb_id, OBS_GET_CENSUS_VARIABLE(the_geom, %L) as %I
+      select cartodb_id, OBS_Augment_Census(the_geom, %L) as %I
       from %I
     ) v
     WHERE v.cartodb_id= %I.cartodb_id;
-  ', table_name, variable_name,variable_name,variable_name,variable_name,table_name,table_name);
+  ', table_name, dimension_name,dimension_name,dimension_name,dimension_name,table_name,table_name);
 
 END;
 $$ LANGUAGE plpgsql ;
@@ -218,8 +235,8 @@ DECLARE
 BEGIN
 
   IF data_table_info.aggregate != 'sum' THEN
-    RAISE EXCEPTION 'Target column is not a sum value, cant aggregate!'
-          USING HINT = 'Pick a column which is a sum or a count';
+    RAISE EXCEPTION 'Target dimension is not a sum value, cant aggregate!'
+          USING HINT = 'Pick a dimension which is a sum or a count';
   end if;
 
 
