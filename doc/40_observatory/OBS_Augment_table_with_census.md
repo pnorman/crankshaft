@@ -1,12 +1,10 @@
 
 ## Name
-***
 
 OBS_AUGMENT_TABLE_WITH_CENSUS - adds the requested dimension to the input table aggregating appropriately depending on the tables
 geometry type.
 
 ## Synopsis
-****
 
 ```postgresql
 OBS_AUGMENT_TABLE_WITH_CENSUS (
@@ -35,7 +33,6 @@ OBS_AUGMENT_TABLE_WITH_CENSUS (
 ```
 
 ## Description
-***
 
 Inputs:
 

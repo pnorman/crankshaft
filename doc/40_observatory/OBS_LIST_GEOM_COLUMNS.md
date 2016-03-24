@@ -1,18 +1,15 @@
 
 ## Name
-***
 
 OBS_LIST_GEOM_COLUMNS - List all available geometers in the data observatory
 
 ## Synopsis
-****
 
 ```postgresql
 OBS_LIST_GEOM_COLUMNS ();
 ```
 
 ## Description
-***
 
 Returns a list of the names of available region tables within the Data Observatory
 
@@ -58,13 +55,15 @@ Result:
 ```javascript
 {
   time: 0.120,
-  total_rows: 1,
+  total_rows: 9,
   rows: [{
     Name: '"us.census.tiger".county'
   },
   {
     Name:  '"us.census.tiger".state'
-  }]
+  },
+  ...
+  ]
 }
 ```
 

@@ -1,12 +1,9 @@
-
 ## Name
-***
 
 OBS_SEARCH - Allows you to search for a dimension within the Data Observatory.
 Returns a list of matched variables with descriptions and meta data for each.
 
 ## Synopsis
-****
 
 ```postgresql
 OBS_SEARCH (search_term text);

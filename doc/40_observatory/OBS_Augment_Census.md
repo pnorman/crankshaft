@@ -1,11 +1,9 @@
 
 ## Name
-***
 
 OBS_Augment_Census - returns the census variable appropriately aggregated appropriately to the input geometry.
 
 ## Synopsis
-****
 
 ```postgresql
 OBS_Augment_Census (
@@ -34,7 +32,6 @@ OBS_Augment_Census (
 ```
 
 ## Description
-***
 
 Inputs:
 
