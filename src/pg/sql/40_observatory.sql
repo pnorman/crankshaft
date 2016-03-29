@@ -108,6 +108,171 @@ END
 $$ LANGUAGE plpgsql;
 
 
+CREATE OR REPLACE FUNCTION OBS_DESCRIBE_SEGMENT(segment_name text)
+returns TABLE(
+  id text,
+  name text,
+  description text,
+  column_names text[],
+  column_descriptions text[],
+  column_ids text[],
+  example_function_call text
+)as $$
+BEGIN
+  RETURN QUERY
+  EXECUTE
+    format(
+      $query$
+        SELECT bmd_tag.id, bmd_tag.name, bmd_tag.description,
+        array_agg(bmd_column.name) column_names,
+        array_agg(bmd_column.description) column_descriptions,
+        array_agg(bmd_column.id) column_ids,
+        'select OBS_AUGMENT_SEGMENT(the_geom,''' || bmd_tag.id || ''')' example_function_call
+        FROM bmd_tag, bmd_column_tag, bmd_column
+        where bmd_tag.id = bmd_column_tag.tag_id
+        and bmd_column.id = bmd_column_tag.column_id
+        and bmd_tag.id ilike '%%%s%%'
+        group by bmd_tag.name, bmd_tag.description, bmd_tag.id
+      $query$, segment_name);
+  RETURN;
+END $$ LANGUAGE plpgsql
+
+CREATE OR REPLACE FUNCTION OBS_LIST_AVAILABLE_SEGMENTS()
+returns TABLE(
+  id text,
+  name text,
+  description text,
+  column_names text[],
+  column_descriptions text[],
+  column_ids text[],
+  example_function_call text
+) as $$
+BEGIN
+  RETURN QUERY
+    EXECUTE
+      $query$
+      SELECT bmd_tag.id, bmd_tag.name, bmd_tag.description,
+      array_agg(bmd_column.name) column_names,
+      array_agg(bmd_column.description) column_descriptions,
+      array_agg(bmd_column.id) column_ids,
+      'select OBS_AUGMENT_SEGMENT(the_geom,''' || bmd_tag.id || ''')' example_function_call
+      FROM bmd_tag, bmd_column_tag, bmd_column
+      where bmd_tag.id = bmd_column_tag.tag_id
+      and bmd_column.id = bmd_column_tag.column_id
+      group by bmd_tag.name, bmd_tag.description, bmd_tag.id
+      $query$
+  RETURN;
+END
+$$ LANGUAGE plpgsql
+
+CREATE OR REPLACE FUNCTION _TEST_POINT()
+RETURNS geometry
+AS $$
+BEGIN
+  return CDB_latlng(40.704512,-73.936669);
+END
+$$ LANGUAGE plpgsql
+
+CREATE OR REPLACE FUNCTION _TEST_AREA()
+RETURNS geometry
+AS $$
+BEGIN
+  return ST_BUFFER(_TEST_POINT()::geography, 500)::geometry;
+END
+$$ LANGUAGE plpgsql
+
+CREATE OR REPLACE FUNCTION OBS_AUGMENT_FAMILIES_WITH_YOUNG_CHILDREN_SEGMENT(the_geom geometry)
+RETURNS TABLE (
+  geom geometry,
+  families_with_young_children Numeric,
+  two_parent_families_with_young_children Numeric,
+  two_parents_in_labor_force_families_with_young_children Numeric,
+  two_parents_father_in_labor_force_families_with_young_children Numeric,
+  two_parents_mother_in_labor_force_families_with_young_children Numeric,
+  two_parents_not_in_labor_force_families_with_young_children Numeric,
+  one_parent_families_with_young_children NUMERIC,
+  father_one_parent_families_with_young_children Numeric
+)
+AS $$
+DECLARE
+  column_ids text[];
+  q text;
+  segment_name text;
+BEGIN
+
+  segment_name = '"us.census.segments".families_with_young_children';
+
+  EXECUTE
+    $query$
+    select column_ids from OBS_DESCRIBE_SEGMENT($1) limit 1;
+    $query$
+  INTO column_ids
+  USING
+  segment_name;
+
+  q = OBS_BUILD_SNAPSHOT_QUERY(column_ids);
+  q = 'with a as (select column_names as names, column_vals as vals from OBS_AUGMENT_SEGMENT($1,$2))' || q || ' from  a';
+  RETURN QUERY
+  EXECUTE
+  q
+  using the_geom, segment_name
+  RETURN;
+END
+$$ LANGUAGE plpgsql
+
+
+CREATE OR REPLACE FUNCTION OBS_AUGMENT_SEGMENT(
+  geom geometry,
+  segment_name text,
+    time_span text DEFAULT '2009 - 2013',
+  geometry_level text DEFAULT '"us.census.tiger".block_group')
+RETURNS TABLE ( column_names text[], column_vals numeric[])
+AS $$
+DECLARE
+ column_ids text[];
+BEGIN
+
+  EXECUTE
+    $query$
+    select column_ids from OBS_DESCRIBE_SEGMENT($1) limit 1;
+    $query$
+  INTO column_ids
+  USING
+  segment_name;
+
+  if column_ids is null  then
+    RAISE 'Could not find a segment %', segment_name;
+  end if;
+
+  RETURN QUERY
+    EXECUTE
+    $query$
+      select  * from OBS_AUGMENT( $1, $2, $3, $4);
+    $query$
+    USING geom, column_ids, time_span, geometry_level
+  RETURN;
+END
+$$ LANGUAGE plpgsql
+
+
+CREATE OR REPLACE FUNCTION OBS_Augment_Census(
+  geom geometry,
+  dimension_name text,
+  time_span text DEFAULT '2009 - 2013',
+  geometry_level text DEFAULT '"us.census.tiger".block_group'
+  )
+RETURNS numeric as $$
+DECLARE
+  column_id text;
+BEGIN
+  column_id = OBS_LOOKUP_CENSUS_HUMAN(dimension_name);
+  if column_id is null then
+    RAISE EXCEPTION 'Column % does not exist ', dimension_name;
+  end if;
+  return OBS_AUGMENT(geom, ARRAY[column_id], time_span, geometry_level);
+END;
+$$ LANGUAGE plpgsql;
+
 
 CREATE OR REPLACE FUNCTION OBS_AUGMENT_CENSUS_MUTLI(
   geom geometry,
@@ -177,7 +342,6 @@ END;
 $$ LANGUAGE plpgsql ;
 
 
-
 CREATE OR REPLACE FUNCTION OBS_AUGMENT(
   geom geometry,
   column_ids text[],
@@ -206,7 +370,7 @@ BEGIN
   IF ST_GeometryType(geom) = 'ST_Point' then
     results  = OBS_AUGMENT_POINTS(geom, geom_table_name, data_table_info);
   ELSIF ST_GeometryType(geom) in ('ST_Polygon', 'ST_MultiPolygon') then
-    results  = OBS_AUGMENT_POLYGONS(geom_table_name, data_table_info);
+    results  = OBS_AUGMENT_POLYGONS(geom,geom_table_name, data_table_info);
   end if;
 
   if results is null then
@@ -468,59 +632,55 @@ END
 $$ LANGUAGE plpgsql
 
 
-CREATE OR REPLACE FUNCTION OBS_CALCULATE_OVERLAPS(
-    the_geom geometry,
-    geom_table_name text
-)
-RETURNS table(geoid string, overlap_fraction numeric, ) AS $$
-  DECLARE
-	result numeric;
-  BEGIN
-    RETURN QUERY
-    EXECUTE
-      format(
-        $query$
-          select  ST_AREA(ST_INTERSECTION($1, a.the_geom))/ST_AREA(a.the_geom) overlap_fraction, geoid
-          from observatory.%I as a
-          where $1 && a.the_geom
-        $query$, geom_table_name)
-    USING the_geom;
-	  RETURN;
-  END;
-$$ language plpgsql
+
 
 CREATE OR REPLACE FUNCTION OBS_AUGMENT_POLYGONS (
   geom geometry,
   geom_table_name text,
-  data_table_info OBS_COLUMN_DATA
-) RETURNS NUMERIC AS $$
+  data_table_info OBS_COLUMN_DATA[]
+) returns numeric[] AS $$
 DECLARE
-  result numeric;
+  result numeric[];
+  q_select text;
+  q_sum text;
+  q text;
+  i numeric;
 BEGIN
 
-  IF data_table_info.aggregate != 'sum' THEN
-    RAISE EXCEPTION 'Target dimension is not a sum value, cant aggregate!'
-          USING HINT = 'Pick a dimension which is a sum or a count';
-  end if;
 
+  q_select = 'select geoid, ';
+  q_sum    = 'select Array[';
 
-  EXECUTE format('
+  FOR i IN 1..array_upper(data_table_info, 1) LOOP
+    q_select = q_select || format( '%I ', ((data_table_info)[i]).colname);
+    if ((data_table_info)[i]).aggregate ='sum' then
+      q_sum    = q_sum || format('sum(overlap_fraction * COALESCE(%I,0)) ',((data_table_info)[i]).colname,((data_table_info)[i]).colname);
+    else
+      q_sum    = q_sum || ' null ';
+    end if;
+    IF i < array_upper(data_table_info,1) THEN
+      q_select = q_select || format(',');
+      q_sum     = q_sum || format(',');
+	end IF;
+   end LOOP;
+
+  q = format('
     WITH _overlaps AS(
       select  ST_AREA(ST_INTERSECTION($1, a.the_geom))/ST_AREA(a.the_geom) overlap_fraction, geoid
       from observatory.%I as a
       where $1 && a.the_geom
     ),
     values AS(
-      select geoid, %I as val from %I
-    )
+    ',geom_table_name );
 
-    select sum(overlap_fraction * COALESCE(val, 0))
-    from _overlaps, values
-    where substr(values.geoid , 8) = _overlaps.geoid
-    ' , geom_table_name,data_table_info.colname, data_table_info.tablename )
-  USING geom
-  INTO result;
+  q = q || q_select || format('from %I ', ((data_table_info)[1].tablename)) ;
 
+  q = q || ' ) ' || q_sum || ' ] from _overlaps, values
+  where substr(values.geoid , 8) = _overlaps.geoid';
+
+
+
+  execute q into result using geom;
   RETURN result;
 
 END;
