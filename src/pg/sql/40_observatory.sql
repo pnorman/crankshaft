@@ -35,6 +35,7 @@ $$  LANGUAGE plpgsql;
 CREATE TYPE OBS_COLUMN_DATA as(colname text , tablename text ,aggregate text);
 
 
+
 -- A function that gets teh column data for a column_id, geometry_id and timespan.
 CREATE OR REPLACE FUNCTION OBS_GET_COLUMN_DATA(
 geometry_id text, column_id text, timespan text)
@@ -47,19 +48,19 @@ BEGIN
     SELECT t.table_id id
     FROM observatory.bmd_column_to_column c2c, observatory.bmd_column_table t
     WHERE c2c.reltype = ''geom_ref''
-      AND c2c.source_id = $1
-      AND c2c.target_id = t.column_id
-  )
-  SELECT colname, tablename, aggregate
-  FROM observatory.bmd_column c, observatory.bmd_column_table ct, observatory.bmd_table t
-  WHERE c.id = ct.column_id
-    AND t.id = ct.table_id
-    AND c.id = $2
-    AND t.timespan = $3
-    AND t.id in (SELECT id FROM geomref)
-  ' USING geometry_id, column_id, timespan
-  INTO result;
-  RETURN result;
+      AND c2c.target_id = $1
+      AND c2c.source_id = t.column_id
+    )
+ SELECT colname, tablename, aggregate
+ FROM observatory.bmd_column c, observatory.bmd_column_table ct, observatory.bmd_table t
+ WHERE c.id = ct.column_id
+   AND t.id = ct.table_id
+   AND c.id = $2
+   AND t.timespan = $3
+   AND t.id in (SELECT id FROM geomref)
+ ' USING geometry_id, column_id, timespan
+ INTO result;
+ RETURN result;
 END
 $$ LANGUAGE plpgsql;
 
@@ -82,6 +83,15 @@ BEGIN
 END
 $$ LANGUAGE plpgsql;
 
+CREATE OR REPLACE FUNCTION OBS_LIST_DIMENSIONS_FOR_TABLE(table_name text )
+RETURNS TABLE(colname text) AS $$
+BEGIN
+  RETURN QUERY
+    EXECUTE format('select colname from observatory.bmd_column_table  where table_id = %L ', table_name);
+  RETURN;
+END
+$$ LANGUAGE plpgsql;
+
 CREATE OR REPLACE FUNCTION OBS_LOOKUP_CENSUS_HUMAN(
   column_name text,
   table_name text DEFAULT '"us.census.acs".extract_year_2013_sample_5yr_geography_block_group'
@@ -97,6 +107,32 @@ BEGIN
 END
 $$ LANGUAGE plpgsql;
 
+
+
+CREATE OR REPLACE FUNCTION OBS_AUGMENT_CENSUS_MUTLI(
+  geom geometry,
+  dimension_names text[],
+  time_span text DEFAULT '2009 - 2013',
+  geometry_level text DEFAULT '"us.census.tiger".block_group'
+)
+RETURNS TABLE( colnames text[], colvalues numeric[])
+AS $$
+DECLARE
+  ids text[];
+BEGIN
+  ids = (
+    WITH b as(
+      select OBS_LOOKUP_CENSUS_HUMAN(unnest(dimension_names)) a
+    )
+    select array_agg(b.a) from b
+  );
+  return query(select * from OBS_AUGMENT(geom, ids,time_span,geometry_level));
+
+END
+$$ LANGUAGE plpgsql ;
+
+
+
 CREATE OR REPLACE FUNCTION OBS_Augment_Census(
   geom geometry,
   dimension_name text,
@@ -109,8 +145,7 @@ DECLARE
 BEGIN
   column_id = OBS_LOOKUP_CENSUS_HUMAN(dimension_name);
   if column_id is null then
-    RAISE EXCEPTION 'Column does not exist'
-        USING HINT = 'Try using OBS_CENSUS_COLUMN_LIST to get a list of avaliable data';
+    RAISE EXCEPTION 'Column % does not exist ', dimension_name;
   end if;
   return OBS_AUGMENT(geom, column_id, time_span, geometry_level);
 END;
@@ -142,10 +177,50 @@ END;
 $$ LANGUAGE plpgsql ;
 
 
--- OBS_AUGMENT takes a target geometry, the column_id that we want to augment with, the time span and a geometry level
+
 CREATE OR REPLACE FUNCTION OBS_AUGMENT(
   geom geometry,
-  column_id text,
+  column_ids text[],
+  time_span text,
+  geometry_level text
+)
+RETURNS TABLE(names text[], vals Numeric[])
+AS $$
+DECLARE
+	results numeric[];
+  geom_table_name text;
+  names   text[];
+  data_table_info OBS_COLUMN_DATA[];
+BEGIN
+
+  geom_table_name := OBS_GEOM_TABLE(geometry_level);
+
+  data_table_info := (
+    with ids as( select unnest(column_ids) id)
+    select array_agg(OBS_GET_COLUMN_DATA(geometry_level, ids.id, time_span))
+    from ids
+  );
+
+  names  = (select array_agg((d).colname) from unnest(data_table_info) as  d );
+
+  IF ST_GeometryType(geom) = 'ST_Point' then
+    results  = OBS_AUGMENT_POINTS(geom, geom_table_name, data_table_info);
+  ELSIF ST_GeometryType(geom) in ('ST_Polygon', 'ST_MultiPolygon') then
+    results  = OBS_AUGMENT_POLYGONS(geom_table_name, data_table_info);
+  end if;
+
+  if results is null then
+    results= Array[];
+  end if;
+
+  return query (select  names, results) ;
+END;
+$$  LANGUAGE plpgsql
+
+-- OBS_AUGMENT takes a target geometry, the column_id that we want to augment with, the time span and a geometry level
+CREATE OR REPLACE FUNCTION OBS_AUGMENT_ONE(
+  geom geometry,
+  column_id[] text,
   time_span text,
   geometry_level text
 )
@@ -179,51 +254,240 @@ $$  LANGUAGE plpgsql;
 CREATE OR REPLACE FUNCTION OBS_AUGMENT_POINTS(
   geom geometry,
   geom_table_name text,
-  data_table_info OBS_COLUMN_DATA
-) RETURNS NUMERIC AS $$
+  data_table_info OBS_COLUMN_DATA[]
+) RETURNS Numeric[] AS $$
 DECLARE
-  result Numeric;
+  result Numeric[];
   query  text;
+  i Numeric;
 BEGIN
 
-  if data_table_info.aggregate != 'sum' then
-    query = format('
-      select %I
-      from observatory.%I, observatory.%I
-      where substr(%I.geoid , 8) = %I.geoid
-      and  %I.the_geom && $1
-      ' ,
-      data_table_info.colname,
-      data_table_info.tablename,
-      geom_table_name,
-      data_table_info.tablename,
-      geom_table_name,
-      geom_table_name);
-  else
-    query = format('
-      select %I/ST_AREA(%I.the_geom::geography)
-      from observatory.%I, observatory.%I
-      where substr(%I.geoid , 8) = %I.geoid
-      and  %I.the_geom && $1
-      ',
-      data_table_info.colname,
-      geom_table_name,
-      data_table_info.tablename,
-      geom_table_name,
-      data_table_info.tablename,
-      geom_table_name,
-      geom_table_name);
+  query = 'select Array[';
+  FOR i in 1..array_upper(data_table_info,1)
+  loop
+    IF ((data_table_info)[i]).aggregate != 'sum' THEN
+      query = query || format('%I ',((data_table_info)[i]).colname);
+    else
+      query = query || format('%I/ST_AREA(%I.the_geom::geography) ',
+        ((data_table_info)[i]).colname,
+        geom_table_name);
+    end if;
+    IF i <  array_upper(data_table_info,1) THEN
+      query = query || ',';
+    end if;
+  end loop;
 
-  end if;
+  query = query || format(' ]
+    from observatory.%I, observatory.%I
+    where substr(%I.geoid , 8) = %I.geoid
+    and  %I.the_geom && $1
+  ',
+  ((data_table_info)[1]).tablename,
+  geom_table_name,
+  ((data_table_info)[1]).tablename,
+  geom_table_name,
+  geom_table_name);
 
+  EXECUTE  query  INTO result USING geom ;
+  return result;
 
-  EXECUTE query
-    USING geom
-    INTO result;
-
-  RETURN result;
 END
 $$ LANGUAGE plpgsql;
+
+
+CREATE OR REPLACE FUNCTION OBS_BUILD_SNAPSHOT_QUERY(names text[])
+RETURNS TEXT AS $$
+DECLARE
+  q text;
+  i numeric;
+BEGIN
+  q ='select ' ;
+  for i in 1..array_upper(names,1)
+  loop
+    q = q || format(' vals[%I] %I', i, names[i]);
+    if i<array_upper(names,1) then
+      q= q||',';
+    end if;
+  end loop;
+  return q;
+END
+$$ LANGUAGE plpgsql;
+
+
+CREATE TYPE OBS_COLUMN_DATA as(colname text , tablename text ,aggregate text);
+
+CREATE TYPE OBS_CENSUS_SUMMARY as(
+"Gini Index" Numeric,
+"Vacant Housing Units for Rent" Numeric,
+"Vacant Housing Units for Sale" Numeric,
+"Commuters by Subway or Elevated" Numeric,
+"Commuters by Public Transportation" Numeric,
+"Commuters by Bus" Numeric,
+"Workers over the Age of 16" Numeric,
+"Commuters by Car, Truck, or Van" Numeric,
+"Walked to Work" Numeric,
+"Worked at Home" Numeric,
+"Students Enrolled in Grades 1 to 4" Numeric,
+"Students Enrolled in School" Numeric,
+"Students Enrolled in Grades 5 to 8" Numeric,
+"Students Enrolled in Grades 9 to 12" Numeric,
+"Students Enrolled as Undergraduate in College" Numeric,
+"Population 3 Years and Over" Numeric,
+"Vacant Housing Units" Numeric,
+"Housing Units" Numeric,
+"Owner-occupied Housing Units" Numeric,
+"Owner-occupied Housing Units valued at $1,000,000 or more." Numeric,
+"Owner-occupied Housing Units with a Mortgage" Numeric,
+"Median Age" Numeric,
+"Percent of Household Income Spent on Rent" Numeric,
+"Children under 18 Years of Age" Numeric,
+"Population Completed Master's Degree" Numeric,
+"Population 25 Years and Over" Numeric,
+"Population Completed High School" Numeric,
+"Population Completed Bachelor's Degree" Numeric,
+"Households" Numeric,
+"Total Population" Numeric,
+"Male Population" Numeric,
+"White Population" Numeric,
+"Black or African American Population" Numeric,
+"Asian Population" Numeric,
+"Not a U.S. Citizen Population" Numeric,
+"Speaks Spanish at Home" Numeric,
+"Population 5 Years and Over" Numeric,
+"Speaks only English at Home" Numeric,
+"Per Capita Income in the past 12 Months" Numeric,
+"Median Household Income in the past 12 Months" Numeric,
+"Population for Whom Poverty Status Determined" Numeric,
+"Median Rent" Numeric
+);
+
+
+
+CREATE OR REPLACE FUNCTION OBS_GetDemographicSnapshot(geom GEOMETRY)
+RETURNS TABLE(
+gini_index Numeric,
+vacant_housing_units_for_rent Numeric,
+vacant_housing_units_for_Sale Numeric,
+commuters_by_Subway_or_Elevated Numeric,
+commuters_by_Public_Transportation Numeric,
+commuters_by_Bus Numeric,
+workers_over_the_age_of_16 Numeric,
+commuter_by_car_truck_or_van Numeric,
+walked_to_work Numeric,
+worked_at_Home Numeric,
+students_enrolled_in_Grades_1_to_4 Numeric,
+students_enrolled_in_School Numeric,
+students_enrolled_in_Grades_5_to_8 Numeric,
+students_enrolled_in_Grades_9_to_12 Numeric,
+students_enrolled_as_Undergraduate_in_College Numeric,
+population_3_years_and_over Numeric,
+vacant_housing_units Numeric,
+housing_units Numeric,
+owner_occupied_Housing_Units Numeric,
+owner_occupied_Housing_Units_valued_at_1_000_000_or_more Numeric,
+owner_occupied_Housing_Units_with_a_Mortgage Numeric,
+median_age Numeric,
+percent_of_household_income_spent_on_rent Numeric,
+children_under_18_years_of_age Numeric,
+population_Completed_Masters_Degree Numeric,
+population_25_Years_and_Over Numeric,
+population_Completed_High_School Numeric,
+population_Completed_Bachelors_Degree Numeric,
+households Numeric,
+total_population Numeric,
+male_population Numeric,
+white_population Numeric,
+black_or_african_american_population Numeric,
+asian_population Numeric,
+not_a_US_Citizen_Population Numeric,
+speaks_spanish_at_home Numeric,
+population_5_years_and_over Numeric,
+speaks_only_english_at_home Numeric,
+per_capita_income_in_the_past_12_months Numeric,
+median_Household_Income_in_the_past_12_Months Numeric,
+population_for_Whom_Poverty_Status_Determined Numeric,
+median_Rent Numeric)
+AS $$
+DECLARE
+ target_cols text[];
+ names text[];
+ vals numeric[];
+ q text;
+ BEGIN
+ target_cols := Array['gini_index',
+ 'vacant_housing_units_for_rent',
+ 'vacant_housing_units_for_sale',
+ 'commuters_by_subway_or_elevated',
+ 'commuters_by_public_transportation',
+ 'commuters_by_bus',
+ 'workers_16_and_over',
+ 'commuters_by_car_truck_van',
+ 'walked_to_work',
+ 'worked_at_home',
+ 'in_grades_1_to_4',
+ 'in_school',
+ 'in_grades_5_to_8',
+ 'in_grades_9_to_12',
+ 'in_undergrad_college',
+ 'population_3_years_over',
+ 'vacant_housing_units',
+ 'housing_units',
+ 'owner_occupied_housing_units',
+ 'million_dollar_housing_units',
+ 'mortgaged_housing_units',
+ 'median_age',
+ 'percent_income_spent_on_rent',
+ 'children',
+ 'masters_degree',
+ 'pop_25_years_over',
+ 'high_school_diploma',
+ 'bachelors_degree',
+ 'households',
+ 'total_pop',
+ 'male_pop',
+ 'white_pop',
+ 'black_pop',
+ 'asian_pop',
+ 'not_us_citizen_pop',
+ 'speak_spanish_at_home',
+ 'pop_5_years_over',
+ 'speak_only_english_at_home',
+ 'income_per_capita',
+ 'median_income',
+ 'pop_determined_poverty_status',
+ 'median_rent'];
+
+  q = OBS_BUILD_SNAPSHOT_QUERY(target_cols);
+  q = 'with a as (select colnames as names, colvalues as vals from OBS_AUGMENT_CENSUS_MUTLI($1,$2))' || q || ' from  a';
+  RETURN QUERY
+  EXECUTE
+  q
+  using geom, target_cols
+  RETURN;
+END
+$$ LANGUAGE plpgsql
+
+
+CREATE OR REPLACE FUNCTION OBS_CALCULATE_OVERLAPS(
+    the_geom geometry,
+    geom_table_name text
+)
+RETURNS table(geoid string, overlap_fraction numeric, ) AS $$
+  DECLARE
+	result numeric;
+  BEGIN
+    RETURN QUERY
+    EXECUTE
+      format(
+        $query$
+          select  ST_AREA(ST_INTERSECTION($1, a.the_geom))/ST_AREA(a.the_geom) overlap_fraction, geoid
+          from observatory.%I as a
+          where $1 && a.the_geom
+        $query$, geom_table_name)
+    USING the_geom;
+	  RETURN;
+  END;
+$$ language plpgsql
 
 CREATE OR REPLACE FUNCTION OBS_AUGMENT_POLYGONS (
   geom geometry,
