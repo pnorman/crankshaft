@@ -6,8 +6,11 @@ $$
 LANGUAGE SQL IMMUTABLE;
 
 -- Returns the table name with geoms for the given geometry_id
+-- TODO probably needs to take in the column_id array to get the relevant
+-- table where there is multiple sources for a column from multiple
+-- geometries.
 CREATE OR REPLACE FUNCTION OBS_GEOM_TABLE (
-  geometry_id text
+  geom geometry, geometry_id text
 )
 RETURNS TEXT as $$
 DECLARE
@@ -17,13 +20,17 @@ BEGIN
     SELECT tablename FROM observatory.bmd_table
     WHERE id IN (
       SELECT table_id
-      FROM observatory.bmd_column_table coltable, observatory.bmd_column col
+      FROM observatory.bmd_table tab,
+           observatory.bmd_column_table coltable,
+           observatory.bmd_column col
       WHERE type ILIKE ''geometry''
         AND coltable.column_id = col.id
+        AND coltable.table_id = tab.id
         AND col.id = $1
+        AND ST_INTERSECTS($2, ST_SetSRID(bounds::box2d::geometry, 4326))
     )
     '
-  USING geometry_id
+  USING geometry_id, geom
   INTO result;
 
   return result;
