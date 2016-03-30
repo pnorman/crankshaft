@@ -2,6 +2,7 @@
 --Create  OBS_AUGMENT_TABLE_WITH_CENSUS_MULTI
 --Create  OBS_AUGMENT_TABLE_WITH_DEMOGRAPHIC_SNAPSHOT
 --Create  OBS_AUGMENT_TABLE_WITH_SEGMENT
+--Allow data for segmentation to come from multiple
 
 
 --Functions for augmenting specific tables
