@@ -309,16 +309,20 @@ CREATE OR REPLACE FUNCTION OBS_AUGMENT(
   time_span text,
   geometry_level text
 )
-RETURNS TABLE(names text[], vals Numeric[])
+RETURNS TABLE(names text[], vals NUMERIC[] )
 AS $$
 DECLARE
 	results numeric[];
   geom_table_name text;
-  names   text[];
+  names         text[];
   data_table_info OBS_COLUMN_DATA[];
 BEGIN
 
-  geom_table_name := OBS_GEOM_TABLE(geometry_level);
+  geom_table_name := OBS_GEOM_TABLE(geom,geometry_level);
+
+  if geom_table_name is null then
+     RAISE EXCEPTION 'Point % is outside of the data region.', geom;
+  end if;
 
   data_table_info := (
     with ids as( select unnest(column_ids) id)
@@ -407,15 +411,17 @@ BEGIN
 
   FOR i IN 1..array_upper(data_table_info, 1) LOOP
     q_select = q_select || format( '%I ', ((data_table_info)[i]).colname);
-    if ((data_table_info)[i]).aggregate ='sum' then
+
+    IF ((data_table_info)[i]).aggregate ='sum' then
       q_sum    = q_sum || format('sum(overlap_fraction * COALESCE(%I,0)) ',((data_table_info)[i]).colname,((data_table_info)[i]).colname);
     else
       q_sum    = q_sum || ' null ';
     end if;
+
     IF i < array_upper(data_table_info,1) THEN
       q_select = q_select || format(',');
       q_sum     = q_sum || format(',');
-	end IF;
+	  end IF;
    end LOOP;
 
   q = format('
