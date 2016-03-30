@@ -1,14 +1,53 @@
 --TODO
+
+--For QLIK release
+-- align return types with metadata: colname.
+-- Decide on dimension or column and change through the code and documentation @axh discussion
+-- overload OBS_Augment_Census
+-- Consistenty use augment (poss get)
+-- One switch table names to obs from bmd
+-- Make OBS_LOOKUP_CENSUS_HUMAN more rhobust
+
+--For DataObs launch
+
 --Create  OBS_AUGMENT_TABLE_WITH_CENSUS_MULTI
 --Create  OBS_AUGMENT_TABLE_WITH_DEMOGRAPHIC_SNAPSHOT
 --Create  OBS_AUGMENT_TABLE_WITH_SEGMENT
---Allow data for segmentation to come from multiple
+--Allow data for segmentation to come from multiple tables
+--Allow different versions of the meta table data to be used (ie dev, production etc)
+----Probably in crankshafts build
+--(OBS_LIST_AVAILABLE_SEGMENTS scope to segment tag type)
+--(OBS_LIST_AVAILABLE_SEGMENTS add ability to query by geom)
+
+
+--For Longer term Dev
+
+--Use foreign keys in meta data tables
+
+--Determine relevant columns based off input geom for a given tag. IE for
+--  male_pop globally pull from us census in the us pull from uk census in uk etc
+
+-- Update OBS_SEARCH to return source from source tags rather than string.
+--Break out table definitions to types
+--Automate type creation from a script, something like
+----CREATE OR REPLACE FUNCTION OBS_Get<%=tag_name%>(geom GEOMETRY)
+----RETURNS TABLE(
+----<%=get_dimensions_for_tag(tag_name)%>
+----AS $$
+----DECLARE
+----target_cols text[];
+----names text[];
+----vals numeric[];-
+----q text;
+----BEGIN
+----target_cols := Array[<%=get_dimensions_for_tag(tag_name)%>],
 
 
 --Functions for augmenting specific tables
 --------------------------------------------------------------------------------
 
 -- Creates a table of demographic snapshot
+
 CREATE OR REPLACE FUNCTION OBS_Get_Demographic_Snapshot(geom GEOMETRY)
 RETURNS TABLE(
 gini_index Numeric,
@@ -161,7 +200,7 @@ $$ LANGUAGE plpgsql
 CREATE OR REPLACE FUNCTION OBS_AUGMENT_SEGMENT(
   geom geometry,
   segment_name text,
-    time_span text DEFAULT '2009 - 2013',
+  time_span text DEFAULT '2009 - 2013',
   geometry_level text DEFAULT '"us.census.tiger".block_group')
 RETURNS TABLE ( column_names text[], column_vals numeric[])
 AS $$
@@ -214,7 +253,7 @@ $$ LANGUAGE plpgsql;
 
 --Returns arrays of values for the given census dimension names for a given
 --point or polygon
-CREATE OR REPLACE FUNCTION OBS_AUGMENT_CENSUS_MUTLI(
+CREATE OR REPLACE FUNCTION OBS_AUGMENT_CENSUS_MULTI(
   geom geometry,
   dimension_names text[],
   time_span text DEFAULT '2009 - 2013',
@@ -261,6 +300,7 @@ BEGIN
 
 END;
 $$ LANGUAGE plpgsql ;
+
 
 -- Base augmentation fucntion.
 CREATE OR REPLACE FUNCTION OBS_AUGMENT(
