@@ -10,6 +10,8 @@
 
 --For DataObs launch
 
+--FIX issues with international date line and OBS_GEOM_TABLE
+--Use actual geometries for the bounds for geom tables rather than box2d
 --Create  OBS_AUGMENT_TABLE_WITH_CENSUS_MULTI
 --Create  OBS_AUGMENT_TABLE_WITH_DEMOGRAPHIC_SNAPSHOT
 --Create  OBS_AUGMENT_TABLE_WITH_SEGMENT
