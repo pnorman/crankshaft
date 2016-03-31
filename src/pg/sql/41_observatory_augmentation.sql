@@ -327,12 +327,27 @@ CREATE OR REPLACE FUNCTION OBS_AUGMENT_POINTS(
   geom geometry,
   geom_table_name text,
   data_table_info OBS_COLUMN_DATA[]
+
 ) RETURNS Numeric[] AS $$
 DECLARE
   result Numeric[];
   query  text;
   i Numeric;
+  geoid text;
+  area  numeric;
 BEGIN
+
+  EXECUTE
+    format('select geoid from observatory.%I where  the_geom && $1',  geom_table_name)
+    using
+    geom
+    INTO geoid;
+
+  EXECUTE
+    format('select ST_AREA(the_geom::geography) from observatory.%I  where geoid = %L', geom_table_name, geoid)
+    INTO
+    area ;
+
 
   query = 'select Array[';
   FOR i in 1..array_upper(data_table_info,1)
@@ -340,9 +355,9 @@ BEGIN
     IF ((data_table_info)[i]).aggregate != 'sum' THEN
       query = query || format('%I ',((data_table_info)[i]).colname);
     else
-      query = query || format('%I/ST_AREA(%I.the_geom::geography) ',
+      query = query || format('%I/%s ',
         ((data_table_info)[i]).colname,
-        geom_table_name);
+        area);
     end if;
     IF i <  array_upper(data_table_info,1) THEN
       query = query || ',';
@@ -350,15 +365,14 @@ BEGIN
   end loop;
 
   query = query || format(' ]
-    from observatory.%I, observatory.%I
-    where substr(%I.geoid , 8) = %I.geoid
-    and  %I.the_geom && $1
+    from observatory.%I
+    where %I.geoid  = %L
   ',
   ((data_table_info)[1]).tablename,
-  geom_table_name,
   ((data_table_info)[1]).tablename,
-  geom_table_name,
-  geom_table_name);
+  geoid
+  );
+
 
   EXECUTE  query  INTO result USING geom ;
   return result;
