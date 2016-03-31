@@ -1,35 +1,7 @@
---TODO
-
---For QLIK release
--- align return types with metadata: colname.
--- Decide on dimension or column and change through the code and documentation @axh discussion
--- overload OBS_Augment_Census
--- Consistenty use augment (poss get)
--- One switch table names to obs from bmd
--- Make OBS_LOOKUP_CENSUS_HUMAN more rhobust
-
---For DataObs launch
-
---FIX issues with international date line and OBS_GEOM_TABLE
---Use actual geometries for the bounds for geom tables rather than box2d
---Create  OBS_AUGMENT_TABLE_WITH_CENSUS_MULTI
---Create  OBS_AUGMENT_TABLE_WITH_DEMOGRAPHIC_SNAPSHOT
---Create  OBS_AUGMENT_TABLE_WITH_SEGMENT
---Allow data for segmentation to come from multiple tables
---Allow different versions of the meta table data to be used (ie dev, production etc)
-----Probably in crankshafts build
---(OBS_LIST_AVAILABLE_SEGMENTS scope to segment tag type)
---(OBS_LIST_AVAILABLE_SEGMENTS add ability to query by geom)
-
 
 --For Longer term Dev
 
---Use foreign keys in meta data tables
 
---Determine relevant columns based off input geom for a given tag. IE for
---  male_pop globally pull from us census in the us pull from uk census in uk etc
-
--- Update OBS_SEARCH to return source from source tags rather than string.
 --Break out table definitions to types
 --Automate type creation from a script, something like
 ----CREATE OR REPLACE FUNCTION OBS_Get<%=tag_name%>(geom GEOMETRY)
