@@ -45,16 +45,16 @@ BEGIN
   EXECUTE
     format(
       $query$
-        SELECT bmd_tag.id, bmd_tag.name, bmd_tag.description,
-        array_agg(bmd_column.name) column_names,
-        array_agg(bmd_column.description) column_descriptions,
-        array_agg(bmd_column.id) column_ids,
-        'select OBS_AUGMENT_SEGMENT(the_geom,''' || bmd_tag.id || ''')' example_function_call
-        FROM bmd_tag, bmd_column_tag, bmd_column
-        where bmd_tag.id = bmd_column_tag.tag_id
-        and bmd_column.id = bmd_column_tag.column_id
-        and bmd_tag.id ilike '%%%s%%'
-        group by bmd_tag.name, bmd_tag.description, bmd_tag.id
+        SELECT observatory.bmd_tag.id, observatory.bmd_tag.name, observatory.bmd_tag.description,
+        array_agg(observatory.bmd_column.name) column_names,
+        array_agg(observatory.bmd_column.description) column_descriptions,
+        array_agg(observatory.bmd_column.id) column_ids,
+        'select OBS_AUGMENT_SEGMENT(the_geom,''' || observatory.bmd_tag.id || ''')' example_function_call
+        FROM observatory.bmd_tag, observatory.bmd_column_tag, observatory.bmd_column
+        where observatory.bmd_tag.id = observatory.bmd_column_tag.tag_id
+        and observatory.bmd_column.id = observatory.bmd_column_tag.column_id
+        and observatory.bmd_tag.id ilike '%%%s%%'
+        group by observatory.bmd_tag.name, observatory.bmd_tag.description, observatory.bmd_tag.id
       $query$, segment_name);
   RETURN;
 END $$ LANGUAGE plpgsql
@@ -73,15 +73,15 @@ BEGIN
   RETURN QUERY
     EXECUTE
       $query$
-      SELECT bmd_tag.id, bmd_tag.name, bmd_tag.description,
-      array_agg(bmd_column.name) column_names,
-      array_agg(bmd_column.description) column_descriptions,
-      array_agg(bmd_column.id) column_ids,
-      'select OBS_AUGMENT_SEGMENT(the_geom,''' || bmd_tag.id || ''')' example_function_call
-      FROM bmd_tag, bmd_column_tag, bmd_column
-      where bmd_tag.id = bmd_column_tag.tag_id
-      and bmd_column.id = bmd_column_tag.column_id
-      group by bmd_tag.name, bmd_tag.description, bmd_tag.id
+      SELECT observatory.bmd_tag.id, observatory.bmd_tag.name, observatory.bmd_tag.description,
+      array_agg(observatory.bmd_column.name) column_names,
+      array_agg(observatory.bmd_column.description) column_descriptions,
+      array_agg(observatory.bmd_column.id) column_ids,
+      'select OBS_AUGMENT_SEGMENT(the_geom,''' || observatory.bmd_tag.id || ''')' example_function_call
+      FROM observatory.bmd_tag, observatory.bmd_column_tag, observatory.bmd_column
+      where observatory.bmd_tag.id = observatory.bmd_column_tag.tag_id
+      and observatory.bmd_column.id = observatory.bmd_column_tag.column_id
+      group by observatory.bmd_tag.name, observatory.bmd_tag.description, observatory.bmd_tag.id
       $query$
   RETURN;
 END

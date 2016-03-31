@@ -3,9 +3,9 @@ CREATE OR REPLACE FUNCTION OBS_INIT_TABLES ()
 RETURNS BOOLEAN
 AS $$
 DECLARE
-  metatables TEXT[] := ARRAY['bmd_table', 'bmd_tag', 'bmd_column',
-                           'bmd_column_table', 'bmd_column_to_column',
-                           'bmd_column_tag'];
+  metatables TEXT[] := ARRAY['observatory.bmd_table', 'observatory.bmd_tag', 'observatory.bmd_column',
+                           'observatory.bmd_column_table', 'observatory.bmd_column_to_column',
+                           'observatory.bmd_column_tag'];
   table_name TEXT;
 BEGIN
   -- Add all meta tables
@@ -15,7 +15,7 @@ BEGIN
   END LOOP;
 
   -- Add all data tables
-  FOR table_name in SELECT tablename FROM observatory.bmd_table
+  FOR table_name in SELECT tablename FROM observatory.observatory.bmd_table
   LOOP
     PERFORM OBS_INIT_TABLE(table_name);
   END LOOP;
