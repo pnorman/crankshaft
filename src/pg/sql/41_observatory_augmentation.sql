@@ -421,10 +421,10 @@ BEGIN
     values AS(
     ',geom_table_name );
 
-  q = q || q_select || format('from %I ', ((data_table_info)[1].tablename)) ;
+  q = q || q_select || format('from observatory.%I ', ((data_table_info)[1].tablename)) ;
 
   q = q || ' ) ' || q_sum || ' ] from _overlaps, values
-  where substr(values.geoid , 8) = _overlaps.geoid';
+  where values.geoid  = _overlaps.geoid';
 
   execute q into result using geom;
   RETURN result;
