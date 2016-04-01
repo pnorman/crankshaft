@@ -1,9 +1,10 @@
 
 -- Returns a list of avaliable geometry columns
-CREATE OR REPLACE FUNCTION OBS_LIST_GEOM_COLUMNS() returns TABLE(column_id text) as $$
+CREATE OR REPLACE FUNCTION OBS_LIST_GEOM_COLUMNS()
+  RETURNS TABLE(column_id text)
+AS $$
   SELECT id FROM observatory.bmd_column WHERE type ILIKE 'geometry';
-$$
-LANGUAGE SQL IMMUTABLE;
+$$ LANGUAGE SQL IMMUTABLE;
 
 -- Returns the table name with geoms for the given geometry_id
 -- TODO probably needs to take in the column_id array to get the relevant
@@ -12,7 +13,8 @@ LANGUAGE SQL IMMUTABLE;
 CREATE OR REPLACE FUNCTION OBS_GEOM_TABLE (
   geom geometry, geometry_id text
 )
-RETURNS TEXT as $$
+  RETURNS TEXT
+AS $$
 DECLARE
   result text;
 BEGIN
@@ -27,7 +29,7 @@ BEGIN
         AND coltable.column_id = col.id
         AND coltable.table_id = tab.id
         AND col.id = $1
-        AND ST_INTERSECTS($2, ST_SetSRID(bounds::box2d::geometry, 4326))
+        AND ST_Intersects($2, ST_SetSRID(bounds::box2d::geometry, 4326))
     )
     '
   USING geometry_id, geom
@@ -35,20 +37,20 @@ BEGIN
 
   return result;
 
-END
-$$  LANGUAGE plpgsql;
+END;
+$$ LANGUAGE plpgsql;
 
 -- A type for use with the OBS_GET_COLUMN_DATA function
-CREATE TYPE OBS_COLUMN_DATA as(colname text , tablename text ,aggregate text);
-
-
+CREATE TYPE OBS_COLUMN_DATA AS (colname text, tablename text, aggregate text);
 
 -- A function that gets teh column data for a column_id, geometry_id and timespan.
 CREATE OR REPLACE FUNCTION OBS_GET_COLUMN_DATA(
-geometry_id text, column_id text, timespan text)
-RETURNS OBS_COLUMN_DATA as $$
+  geometry_id text, column_id text, timespan text
+)
+RETURNS OBS_COLUMN_DATA
+AS $$
 DECLARE
-RESULT OBS_COLUMN_DATA;
+  result OBS_COLUMN_DATA;
 BEGIN
   EXECUTE '
   WITH geomref AS (
@@ -65,10 +67,13 @@ BEGIN
    AND c.id = $2
    AND t.timespan = $3
    AND t.id in (SELECT id FROM geomref)
- ' USING geometry_id, column_id, timespan
+ '
+ USING geometry_id, column_id, timespan
  INTO result;
+
  RETURN result;
-END
+
+END;
 $$ LANGUAGE plpgsql;
 
 
@@ -77,15 +82,19 @@ CREATE OR REPLACE FUNCTION OBS_LOOKUP_CENSUS_HUMAN(
   column_name text,
   table_name text DEFAULT '"us.census.acs".extract_year_2013_sample_5yr_geography_block_group'
 )
-RETURNS text as $$
+RETURNS text
+AS $$
 DECLARE
   column_id text;
   result text;
 BEGIN
-    EXECUTE format('select column_id from observatory.bmd_column_table where colname = %L  and table_id = %L limit 1', column_name,table_name)
+    EXECUTE format('SELECT column_id
+                    FROM observatory.bmd_column_table
+                    WHERE colname = %L AND table_id = %L
+                    LIMIT 1', column_name,table_name)
     INTO result;
     RETURN result;
-END
+END;
 $$ LANGUAGE plpgsql;
 
 CREATE OR REPLACE FUNCTION OBS_LOOKUP_CENSUS_HUMAN(
@@ -106,41 +115,48 @@ $$ LANGUAGE plpgsql;
 
 --Test point cause Stuart always seems to make random points in the water
 CREATE OR REPLACE FUNCTION _TEST_POINT()
-RETURNS geometry
+  RETURNS geometry
 AS $$
 BEGIN
-  return CDB_latlng(40.704512,-73.936669);
-END
-$$ LANGUAGE plpgsql
+  RETURN CDB_LatLng(40.704512, -73.936669);
+END;
+$$ LANGUAGE plpgsql;
 
 --Test polygon cause Stuart always seems to make random points in the water
 CREATE OR REPLACE FUNCTION _TEST_AREA()
-RETURNS geometry
+  RETURNS geometry
 AS $$
 BEGIN
-  return ST_BUFFER(_TEST_POINT()::geography, 500)::geometry;
-END
-$$ LANGUAGE plpgsql
+
+  RETURN ST_Buffer(_TEST_POINT()::geography, 500)::geometry;
+
+END;
+$$ LANGUAGE plpgsql;
 
 --Used to expand a column based response to a table based one. Give it the desired
 --columns and it will return a partial query for rolling them out to a table.
 CREATE OR REPLACE FUNCTION OBS_BUILD_SNAPSHOT_QUERY(names text[])
-RETURNS TEXT AS $$
+RETURNS TEXT
+AS $$
 DECLARE
   q text;
   i numeric;
 BEGIN
-  q ='select ' ;
-  for i in 1..array_upper(names,1)
-  loop
+
+  q := 'select ';
+
+  FOR i IN 1..array_upper(names,1)
+  LOOP
     q = q || format(' vals[%I] %I', i, names[i]);
     if i<array_upper(names,1) then
       q= q||',';
-    end if;
-  end loop;
-  return q;
-END
+    END IF;
+  END LOOP;
+  RETURN q;
+
+END;
 $$ LANGUAGE plpgsql;
 
 --Type for describing column data from the Data Obseravtory
-CREATE TYPE OBS_COLUMN_DATA as(colname text , tablename text ,aggregate text);
+-- ALREADY USED ABOVE
+-- CREATE TYPE OBS_COLUMN_DATA as(colname text, tablename text, aggregate text);
