@@ -227,7 +227,7 @@ $$ LANGUAGE plpgsql;
 
 --Returns arrays of values for the given census dimension names for a given
 --point or polygon
-CREATE OR REPLACE FUNCTION OBS_AUGMENT_CENSUS_MULTI(
+CREATE OR REPLACE FUNCTION OBS_AUGMENT_CENSUS(
   geom geometry,
   dimension_names text[],
   time_span text DEFAULT '2009 - 2013',
@@ -238,12 +238,8 @@ AS $$
 DECLARE
   ids text[];
 BEGIN
-  ids = (
-    WITH b as(
-      select OBS_LOOKUP_CENSUS_HUMAN(unnest(dimension_names)) a
-    )
-    select array_agg(b.a) from b
-  );
+
+  ids  = OBS_LOOKUP_CENSUS_HUMAN(dimension_names);
   return query(select * from OBS_AUGMENT(geom, ids,time_span,geometry_level));
 
 END
