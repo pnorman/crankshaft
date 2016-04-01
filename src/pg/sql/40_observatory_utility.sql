@@ -88,6 +88,21 @@ BEGIN
 END
 $$ LANGUAGE plpgsql;
 
+CREATE OR REPLACE FUNCTION OBS_LOOKUP_CENSUS_HUMAN(
+  column_names text[],
+  table_name text DEFAULT '"us.census.acs".extract_year_2013_sample_5yr_geography_block_group'
+)
+RETURNS text[] as $$
+DECLARE
+  column_id text;
+  result text;
+BEGIN
+    EXECUTE format('select array_agg(column_id) from observatory.bmd_column_table where Array[colname] <@ $1  and table_id = %L limit 1', table_name)
+    INTO result
+    using column_names;
+    RETURN result;
+END
+$$ LANGUAGE plpgsql;
 
 --Test point cause Stuart always seems to make random points in the water
 CREATE OR REPLACE FUNCTION _TEST_POINT()
