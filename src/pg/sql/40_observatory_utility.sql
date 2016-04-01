@@ -3,7 +3,7 @@
 CREATE OR REPLACE FUNCTION OBS_LIST_GEOM_COLUMNS()
   RETURNS TABLE(column_id text)
 AS $$
-  SELECT id FROM observatory.bmd_column WHERE type ILIKE 'geometry';
+  SELECT id FROM observatory.OBS_column WHERE type ILIKE 'geometry';
 $$ LANGUAGE SQL IMMUTABLE;
 
 -- Returns the table name with geoms for the given geometry_id
@@ -19,12 +19,12 @@ DECLARE
   result text;
 BEGIN
   EXECUTE '
-    SELECT tablename FROM observatory.bmd_table
+    SELECT tablename FROM observatory.OBS_table
     WHERE id IN (
       SELECT table_id
-      FROM observatory.bmd_table tab,
-           observatory.bmd_column_table coltable,
-           observatory.bmd_column col
+      FROM observatory.OBS_table tab,
+           observatory.OBS_column_table coltable,
+           observatory.OBS_column col
       WHERE type ILIKE ''geometry''
         AND coltable.column_id = col.id
         AND coltable.table_id = tab.id
@@ -55,13 +55,13 @@ BEGIN
   EXECUTE '
   WITH geomref AS (
     SELECT t.table_id id
-    FROM observatory.bmd_column_to_column c2c, observatory.bmd_column_table t
+    FROM observatory.OBS_column_to_column c2c, observatory.OBS_column_table t
     WHERE c2c.reltype = ''geom_ref''
       AND c2c.target_id = $1
       AND c2c.source_id = t.column_id
     )
  SELECT colname, tablename, aggregate
- FROM observatory.bmd_column c, observatory.bmd_column_table ct, observatory.bmd_table t
+ FROM observatory.OBS_column c, observatory.OBS_column_table ct, observatory.OBS_table t
  WHERE c.id = ct.column_id
    AND t.id = ct.table_id
    AND c.id = $2
@@ -89,7 +89,7 @@ DECLARE
   result text;
 BEGIN
     EXECUTE format('SELECT column_id
-                    FROM observatory.bmd_column_table
+                    FROM observatory.OBS_column_table
                     WHERE colname = %L AND table_id = %L
                     LIMIT 1', column_name,table_name)
     INTO result;
