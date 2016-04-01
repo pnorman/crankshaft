@@ -224,7 +224,7 @@ DECLARE
   RAISE NOTICE 'starting: %', timeofday();
 
   q = OBS_BUILD_SNAPSHOT_QUERY(target_cols);
-  q = 'with a as (select colnames as names, colvalues as vals from OBS_AUGMENT_CENSUS($1,$2))' || q || ' from  a';
+  q = 'with a as (select colnames as names, colvalues as vals from OBS_Get_CENSUS($1,$2))' || q || ' from  a';
   RAISE NOTICE 'Ending : %', timeofday();
 
   RAISE NOTICE  "query: %", q
@@ -239,7 +239,7 @@ $$ LANGUAGE plpgsql
 
 --Creates a table with the young family segment.
 
-CREATE OR REPLACE FUNCTION OBS_AUGMENT_FAMILIES_WITH_YOUNG_CHILDREN_SEGMENT(address text)
+CREATE OR REPLACE FUNCTION OBS_GET_FAMILIES_WITH_YOUNG_CHILDREN_SEGMENT(address text)
 RETURNS TABLE (
   geom geometry,
   families_with_young_children Numeric,
@@ -257,14 +257,14 @@ BEGIN
 RETURN QUERY
   EXECUTE
   $query$
-    SELECT * from OBS_AUGMENT_FAMILIES_WITH_YOUNG_CHILDREN_SEGMENT(cdb_geocode_street_point($1));
+    SELECT * from OBS_GET_FAMILIES_WITH_YOUNG_CHILDREN_SEGMENT(cdb_geocode_street_point($1));
   $query$
   USING address;
 RETURN;
 END
 $$ LANGUAGE plpgsql
 
-CREATE OR REPLACE FUNCTION OBS_AUGMENT_FAMILIES_WITH_YOUNG_CHILDREN_SEGMENT(the_geom geometry)
+CREATE OR REPLACE FUNCTION OBS_GET_FAMILIES_WITH_YOUNG_CHILDREN_SEGMENT(the_geom geometry)
 RETURNS TABLE (
   geom geometry,
   families_with_young_children Numeric,
@@ -294,7 +294,7 @@ BEGIN
   segment_name;
 
   q = OBS_BUILD_SNAPSHOT_QUERY(column_ids);
-  q = 'with a as (select column_names as names, column_vals as vals from OBS_AUGMENT_SEGMENT($1,$2))' || q || ' from  a';
+  q = 'with a as (select column_names as names, column_vals as vals from OBS_Get_SEGMENT($1,$2))' || q || ' from  a';
   RETURN QUERY
   EXECUTE
   q
@@ -307,7 +307,7 @@ $$ LANGUAGE plpgsql
 ----------------------------------------------------------------------------------------
 
 --Creates a array based report of the named segment given a point or geometry
-CREATE OR REPLACE FUNCTION OBS_AUGMENT_SEGMENT(
+CREATE OR REPLACE FUNCTION OBS_GET_SEGMENT(
   geom geometry,
   segment_name text,
   time_span text DEFAULT '2009 - 2013',
@@ -318,7 +318,7 @@ BEGIN
   RETURN QUERY
   EXECUTE
   $query$
-    SELECT * from OBS_AUGMENT_SEGMENT(cdb_geocode_street_point($1), $2, $3, $4);
+    SELECT * from OBS_Get_SEGMENT(cdb_geocode_street_point($1), $2, $3, $4);
   $query$
   USING
   address,
@@ -331,7 +331,7 @@ $$ LANGUAGE plpgsql
 
 
 
-CREATE OR REPLACE FUNCTION OBS_AUGMENT_SEGMENT(
+CREATE OR REPLACE FUNCTION OBS_GET_SEGMENT(
   geom geometry,
   segment_name text,
   time_span text DEFAULT '2009 - 2013',
@@ -357,7 +357,7 @@ BEGIN
   RETURN QUERY
     EXECUTE
     $query$
-      select  * from OBS_AUGMENT( $1, $2, $3, $4);
+      select  * from OBS_Get( $1, $2, $3, $4);
     $query$
     USING geom, column_ids, time_span, geometry_level
   RETURN;
@@ -367,7 +367,7 @@ $$ LANGUAGE plpgsql
 
 --Grabs the value of a census dimension for given a point or geometry.
 
-CREATE OR REPLACE FUNCTION OBS_Augment_Census(
+CREATE OR REPLACE FUNCTION OBS_Get_Census(
   address text,
   dimension_name text,
   time_span text DEFAULT '2009 - 2013',
@@ -379,7 +379,7 @@ BEGIN
   RETURN QUERY
   EXECUTE
   $query$
-    SELECT * from OBS_AUGMENT_CENSUS(cdb_geocode_street_point($1), $2, $3, $4);
+    SELECT * from OBS_GET_CENSUS(cdb_geocode_street_point($1), $2, $3, $4);
   $query$
   USING
   address,
@@ -390,7 +390,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
-CREATE OR REPLACE FUNCTION OBS_Augment_Census(
+CREATE OR REPLACE FUNCTION OBS_Get_Census(
   address text,
   dimension_names text[],
   time_span text DEFAULT '2009 - 2013',
@@ -402,7 +402,7 @@ BEGIN
   RETURN QUERY
   EXECUTE
   $query$
-    SELECT * from OBS_AUGMENT_CENSUS(cdb_geocode_street_point($1), $2, $3, $4);
+    SELECT * from OBS_GET_CENSUS(cdb_geocode_street_point($1), $2, $3, $4);
   $query$
   USING
   address,
@@ -413,7 +413,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
-CREATE OR REPLACE FUNCTION OBS_Augment_Census(
+CREATE OR REPLACE FUNCTION OBS_Get_Census(
   geom geometry,
   dimension_name text,
   time_span text DEFAULT '2009 - 2013',
@@ -427,14 +427,14 @@ BEGIN
   if column_id is null then
     RAISE EXCEPTION 'Column % does not exist ', dimension_name;
   end if;
-  return OBS_AUGMENT(geom, ARRAY[column_id], time_span, geometry_level);
+  return OBS_GET(geom, ARRAY[column_id], time_span, geometry_level);
 END;
 $$ LANGUAGE plpgsql;
 
 
 --Returns arrays of values for the given census dimension names for a given
 --point or polygon
-CREATE OR REPLACE FUNCTION OBS_AUGMENT_CENSUS(
+CREATE OR REPLACE FUNCTION OBS_Get_CENSUS(
   geom geometry,
   dimension_names text[],
   time_span text DEFAULT '2009 - 2013',
@@ -447,13 +447,13 @@ DECLARE
 BEGIN
 
   ids  = OBS_LOOKUP_CENSUS_HUMAN(dimension_names);
-  return query(select * from OBS_AUGMENT(geom, ids,time_span,geometry_level));
+  return query(select * from OBS_Get(geom, ids,time_span,geometry_level));
 
 END
 $$ LANGUAGE plpgsql ;
 
 --Augments the target table with the desired census variable.
-CREATE OR REPLACE FUNCTION OBS_AUGMENT_TABLE_WITH_CENSUS(
+CREATE OR REPLACE FUNCTION OBS_Get_TABLE_WITH_CENSUS(
   table_name text,
   dimension_name text
 ) RETURNS VOID AS $$
@@ -469,7 +469,7 @@ BEGIN
   EXECUTE format('UPDATE %I
     SET %I = v.%I
     FROM (
-      select cartodb_id, OBS_Augment_Census(the_geom, %L) as %I
+      select cartodb_id, OBS_Get_Census(the_geom, %L) as %I
       from %I
     ) v
     WHERE v.cartodb_id= %I.cartodb_id;
@@ -480,7 +480,7 @@ $$ LANGUAGE plpgsql ;
 
 
 -- Base augmentation fucntion.
-CREATE OR REPLACE FUNCTION OBS_AUGMENT(
+CREATE OR REPLACE FUNCTION OBS_GET(
   geom geometry,
   column_ids text[],
   time_span text,
@@ -510,9 +510,9 @@ BEGIN
   names  = (select array_agg((d).colname) from unnest(data_table_info) as  d );
 
   IF ST_GeometryType(geom) = 'ST_Point' then
-    results  = OBS_AUGMENT_POINTS(geom, geom_table_name, data_table_info);
+    results  = OBS_Get_POINTS(geom, geom_table_name, data_table_info);
   ELSIF ST_GeometryType(geom) in ('ST_Polygon', 'ST_MultiPolygon') then
-    results  = OBS_AUGMENT_POLYGONS(geom,geom_table_name, data_table_info);
+    results  = OBS_Get_POLYGONS(geom,geom_table_name, data_table_info);
   end if;
 
   if results is null then
@@ -526,7 +526,7 @@ $$  LANGUAGE plpgsql
 
 -- IF the variable of interest is just a rate return it as such, othewise normalize
 -- it to the census block area and return that
-CREATE OR REPLACE FUNCTION OBS_AUGMENT_POINTS(
+CREATE OR REPLACE FUNCTION OBS_Get_Points(
   geom geometry,
   geom_table_name text,
   data_table_info OBS_COLUMN_DATA[]
@@ -583,7 +583,7 @@ BEGIN
 END
 $$ LANGUAGE plpgsql;
 
-CREATE OR REPLACE FUNCTION OBS_AUGMENT_POLYGONS (
+CREATE OR REPLACE FUNCTION OBS_Get_Polygons (
   geom geometry,
   geom_table_name text,
   data_table_info OBS_COLUMN_DATA[]
