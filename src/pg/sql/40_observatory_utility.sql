@@ -79,7 +79,7 @@ $$ LANGUAGE plpgsql;
 
 -- A function that gets the column data for multiple columns
 CREATE OR REPLACE FUNCTION OBS_GET_COLUMN_DATA(
-  geometry_ids text, column_ids[] text, timespans text
+  geometry_ids text, column_ids text[], timespans text
 )
 RETURNS OBS_COLUMN_DATA
 AS $$
@@ -182,7 +182,7 @@ BEGIN
 
   FOR i IN 1..array_upper(names,1)
   LOOP
-    q = q || format(' vals[%I] %I', i, names[i]);
+    q = q || format(' vals[%s] %I', i, names[i]);
     if i<array_upper(names,1) then
       q= q||',';
     END IF;
