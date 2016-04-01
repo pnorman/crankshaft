@@ -22,6 +22,111 @@
 
 -- Creates a table of demographic snapshot
 
+CREATE OR REPLACE FUNCTION OBS_Get_Demographic_Snapshot(address text )
+RETURNS TABLE(
+gini_index Numeric,
+vacant_housing_units_for_rent Numeric,
+vacant_housing_units_for_Sale Numeric,
+commuters_by_Subway_or_Elevated Numeric,
+commuters_by_Public_Transportation Numeric,
+commuters_by_Bus Numeric,
+workers_over_the_age_of_16 Numeric,
+commuter_by_car_truck_or_van Numeric,
+walked_to_work Numeric,
+worked_at_Home Numeric,
+students_enrolled_in_Grades_1_to_4 Numeric,
+students_enrolled_in_School Numeric,
+students_enrolled_in_Grades_5_to_8 Numeric,
+students_enrolled_in_Grades_9_to_12 Numeric,
+students_enrolled_as_Undergraduate_in_College Numeric,
+population_3_years_and_over Numeric,
+vacant_housing_units Numeric,
+housing_units Numeric,
+owner_occupied_Housing_Units Numeric,
+owner_occupied_Housing_Units_valued_at_1_000_000_or_more Numeric,
+owner_occupied_Housing_Units_with_a_Mortgage Numeric,
+median_age Numeric,
+percent_of_household_income_spent_on_rent Numeric,
+children_under_18_years_of_age Numeric,
+population_Completed_Masters_Degree Numeric,
+population_25_Years_and_Over Numeric,
+population_Completed_High_School Numeric,
+population_Completed_Bachelors_Degree Numeric,
+households Numeric,
+total_population Numeric,
+male_population Numeric,
+white_population Numeric,
+black_or_african_american_population Numeric,
+asian_population Numeric,
+not_a_US_Citizen_Population Numeric,
+speaks_spanish_at_home Numeric,
+population_5_years_and_over Numeric,
+speaks_only_english_at_home Numeric,
+per_capita_income_in_the_past_12_months Numeric,
+median_Household_Income_in_the_past_12_Months Numeric,
+population_for_Whom_Poverty_Status_Determined Numeric,
+median_Rent Numeric)
+AS $$
+DECLARE
+ target_cols text[];
+ names text[];
+ vals numeric[];
+ q text;
+ BEGIN
+ target_cols := Array['gini_index',
+ 'vacant_housing_units_for_rent',
+ 'vacant_housing_units_for_sale',
+ 'commuters_by_subway_or_elevated',
+ 'commuters_by_public_transportation',
+ 'commuters_by_bus',
+ 'workers_16_and_over',
+ 'commuters_by_car_truck_van',
+ 'walked_to_work',
+ 'worked_at_home',
+ 'in_grades_1_to_4',
+ 'in_school',
+ 'in_grades_5_to_8',
+ 'in_grades_9_to_12',
+ 'in_undergrad_college',
+ 'population_3_years_over',
+ 'vacant_housing_units',
+ 'housing_units',
+ 'owner_occupied_housing_units',
+ 'million_dollar_housing_units',
+ 'mortgaged_housing_units',
+ 'median_age',
+ 'percent_income_spent_on_rent',
+ 'children',
+ 'masters_degree',
+ 'pop_25_years_over',
+ 'high_school_diploma',
+ 'bachelors_degree',
+ 'households',
+ 'total_pop',
+ 'male_pop',
+ 'white_pop',
+ 'black_pop',
+ 'asian_pop',
+ 'not_us_citizen_pop',
+ 'speak_spanish_at_home',
+ 'pop_5_years_over',
+ 'speak_only_english_at_home',
+ 'income_per_capita',
+ 'median_income',
+ 'pop_determined_poverty_status',
+ 'median_rent'];
+
+  RETURN QUERY
+    EXECUTE
+    $query$
+      SELECT * from OBS_Get_Demographic_Snapshot(cdb_geocode_street_point($1));
+    $query$
+    USING address;
+  RETURN;
+END
+$$ LANGUAGE plpgsql
+
+
 CREATE OR REPLACE FUNCTION OBS_Get_Demographic_Snapshot(geom GEOMETRY)
 RETURNS TABLE(
 gini_index Numeric,
@@ -116,8 +221,13 @@ DECLARE
  'pop_determined_poverty_status',
  'median_rent'];
 
+  RAISE NOTICE 'starting: %', timeofday();
+
   q = OBS_BUILD_SNAPSHOT_QUERY(target_cols);
-  q = 'with a as (select colnames as names, colvalues as vals from OBS_AUGMENT_CENSUS_MUTLI($1,$2))' || q || ' from  a';
+  q = 'with a as (select colnames as names, colvalues as vals from OBS_AUGMENT_CENSUS($1,$2))' || q || ' from  a';
+  RAISE NOTICE 'Ending : %', timeofday();
+
+  RAISE NOTICE  "query: %", q
   RETURN QUERY
   EXECUTE
   q
@@ -128,6 +238,32 @@ $$ LANGUAGE plpgsql
 
 
 --Creates a table with the young family segment.
+
+CREATE OR REPLACE FUNCTION OBS_AUGMENT_FAMILIES_WITH_YOUNG_CHILDREN_SEGMENT(address text)
+RETURNS TABLE (
+  geom geometry,
+  families_with_young_children Numeric,
+  two_parent_families_with_young_children Numeric,
+  two_parents_in_labor_force_families_with_young_children Numeric,
+  two_parents_father_in_labor_force_families_with_young_children Numeric,
+  two_parents_mother_in_labor_force_families_with_young_children Numeric,
+  two_parents_not_in_labor_force_families_with_young_children Numeric,
+  one_parent_families_with_young_children NUMERIC,
+  father_one_parent_families_with_young_children Numeric
+)
+AS $$
+DECLARE
+BEGIN
+RETURN QUERY
+  EXECUTE
+  $query$
+    SELECT * from OBS_AUGMENT_FAMILIES_WITH_YOUNG_CHILDREN_SEGMENT(cdb_geocode_street_point($1));
+  $query$
+  USING address;
+RETURN;
+END
+$$ LANGUAGE plpgsql
+
 CREATE OR REPLACE FUNCTION OBS_AUGMENT_FAMILIES_WITH_YOUNG_CHILDREN_SEGMENT(the_geom geometry)
 RETURNS TABLE (
   geom geometry,
@@ -178,6 +314,30 @@ CREATE OR REPLACE FUNCTION OBS_AUGMENT_SEGMENT(
   geometry_level text DEFAULT '"us.census.tiger".block_group')
 RETURNS TABLE ( column_names text[], column_vals numeric[])
 AS $$
+BEGIN
+  RETURN QUERY
+  EXECUTE
+  $query$
+    SELECT * from OBS_AUGMENT_SEGMENT(cdb_geocode_street_point($1), $2, $3, $4);
+  $query$
+  USING
+  address,
+  segemnt_name,
+  time_span,
+  geometry_level;
+  RETURN;
+END
+$$ LANGUAGE plpgsql
+
+
+
+CREATE OR REPLACE FUNCTION OBS_AUGMENT_SEGMENT(
+  geom geometry,
+  segment_name text,
+  time_span text DEFAULT '2009 - 2013',
+  geometry_level text DEFAULT '"us.census.tiger".block_group')
+RETURNS TABLE ( column_names text[], column_vals numeric[])
+AS $$
 DECLARE
  column_ids text[];
 BEGIN
@@ -206,6 +366,53 @@ $$ LANGUAGE plpgsql
 
 
 --Grabs the value of a census dimension for given a point or geometry.
+
+CREATE OR REPLACE FUNCTION OBS_Augment_Census(
+  address text,
+  dimension_name text,
+  time_span text DEFAULT '2009 - 2013',
+  geometry_level text DEFAULT '"us.census.tiger".block_group'
+  )
+RETURNS numeric as $$
+
+BEGIN
+  RETURN QUERY
+  EXECUTE
+  $query$
+    SELECT * from OBS_AUGMENT_CENSUS(cdb_geocode_street_point($1), $2, $3, $4);
+  $query$
+  USING
+  address,
+  dimension_name,
+  time_span,
+  geometry_level;
+  RETURN;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE OR REPLACE FUNCTION OBS_Augment_Census(
+  address text,
+  dimension_names text[],
+  time_span text DEFAULT '2009 - 2013',
+  geometry_level text DEFAULT '"us.census.tiger".block_group'
+  )
+RETURNS TABLE( colnames text[], colvalues numeric[]) as $$
+
+BEGIN
+  RETURN QUERY
+  EXECUTE
+  $query$
+    SELECT * from OBS_AUGMENT_CENSUS(cdb_geocode_street_point($1), $2, $3, $4);
+  $query$
+  USING
+  address,
+  dimension_names,
+  time_span,
+  geometry_level;
+  RETURN;
+END;
+$$ LANGUAGE plpgsql;
+
 CREATE OR REPLACE FUNCTION OBS_Augment_Census(
   geom geometry,
   dimension_name text,
