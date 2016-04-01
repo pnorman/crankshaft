@@ -156,7 +156,3 @@ BEGIN
 
 END;
 $$ LANGUAGE plpgsql;
-
---Type for describing column data from the Data Obseravtory
--- ALREADY USED ABOVE
--- CREATE TYPE OBS_COLUMN_DATA as(colname text, tablename text, aggregate text);
