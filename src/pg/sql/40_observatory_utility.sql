@@ -79,12 +79,12 @@ $$ LANGUAGE plpgsql;
 
 -- A function that gets the column data for multiple columns
 CREATE OR REPLACE FUNCTION OBS_GET_COLUMN_DATA(
-  geometry_ids text, column_ids text[], timespans text
+  geometry_id text, column_ids text[], timespan text
 )
-RETURNS OBS_COLUMN_DATA
+RETURNS OBS_COLUMN_DATA[]
 AS $$
 DECLARE
-  result OBS_COLUMN_DATA;
+  result OBS_COLUMN_DATA[];
 BEGIN
   EXECUTE '
   WITH geomref AS (
@@ -94,7 +94,7 @@ BEGIN
       AND c2c.target_id = $1
       AND c2c.source_id = t.column_id
     )
- SELECT colname, tablename, aggregate
+ SELECT array_agg(ROW(colname, tablename, aggregate)::OBS_COLUMN_DATA)
  FROM observatory.OBS_column c, observatory.OBS_column_table ct, observatory.OBS_table t
  WHERE c.id = ct.column_id
    AND t.id = ct.table_id
@@ -104,6 +104,8 @@ BEGIN
  '
  USING geometry_id, column_ids, timespan
  INTO result;
+
+ RAISE NOTICE 'result %', result;
 
  RETURN result;
 
