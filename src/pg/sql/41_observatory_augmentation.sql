@@ -124,7 +124,7 @@ DECLARE
     USING address;
   RETURN;
 END
-$$ LANGUAGE plpgsql
+$$ LANGUAGE plpgsql;
 
 
 CREATE OR REPLACE FUNCTION OBS_Get_Demographic_Snapshot(geom GEOMETRY)
@@ -227,14 +227,13 @@ DECLARE
   q = 'with a as (select colnames as names, colvalues as vals from OBS_Get_CENSUS($1,$2))' || q || ' from  a';
   RAISE NOTICE 'Ending : %', timeofday();
 
-  RAISE NOTICE  "query: %", q
   RETURN QUERY
   EXECUTE
   q
   using geom, target_cols
   RETURN;
 END
-$$ LANGUAGE plpgsql
+$$ LANGUAGE plpgsql;
 
 
 --Creates a table with the young family segment.
@@ -262,7 +261,7 @@ RETURN QUERY
   USING address;
 RETURN;
 END
-$$ LANGUAGE plpgsql
+$$ LANGUAGE plpgsql;
 
 CREATE OR REPLACE FUNCTION OBS_GET_FAMILIES_WITH_YOUNG_CHILDREN_SEGMENT(the_geom geometry)
 RETURNS TABLE (
@@ -301,7 +300,7 @@ BEGIN
   using the_geom, segment_name
   RETURN;
 END
-$$ LANGUAGE plpgsql
+$$ LANGUAGE plpgsql;
 
 --Base functions for performing augmentation
 ----------------------------------------------------------------------------------------
@@ -327,7 +326,7 @@ BEGIN
   geometry_level;
   RETURN;
 END
-$$ LANGUAGE plpgsql
+$$ LANGUAGE plpgsql;
 
 
 
@@ -362,7 +361,7 @@ BEGIN
     USING geom, column_ids, time_span, geometry_level
   RETURN;
 END
-$$ LANGUAGE plpgsql
+$$ LANGUAGE plpgsql;
 
 
 --Grabs the value of a census dimension for given a point or geometry.
@@ -521,7 +520,7 @@ BEGIN
 
   return query (select  names, results) ;
 END;
-$$  LANGUAGE plpgsql
+$$  LANGUAGE plpgsql;
 
 
 -- IF the variable of interest is just a rate return it as such, othewise normalize
