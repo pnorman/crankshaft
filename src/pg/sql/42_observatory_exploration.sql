@@ -77,7 +77,7 @@ BEGIN
         group by observatory.OBS_tag.name, observatory.OBS_tag.description, observatory.OBS_tag.id
       $query$, segment_name);
   RETURN;
-END $$ LANGUAGE plpgsql
+END $$ LANGUAGE plpgsql;
 
 CREATE OR REPLACE FUNCTION OBS_LIST_AVAILABLE_SEGMENTS()
 returns TABLE(
@@ -105,4 +105,4 @@ BEGIN
       $query$
   RETURN;
 END
-$$ LANGUAGE plpgsql
+$$ LANGUAGE plpgsql;
