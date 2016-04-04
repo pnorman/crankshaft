@@ -94,19 +94,17 @@ BEGIN
       AND c2c.target_id = $1
       AND c2c.source_id = t.column_id
     )
- SELECT array_agg(ROW(colname, tablename, aggregate)::OBS_COLUMN_DATA)
+ SELECT array_agg(ROW(colname, tablename, aggregate)::OBS_COLUMN_DATA  order by column_id)
  FROM observatory.OBS_column c, observatory.OBS_column_table ct, observatory.OBS_table t
  WHERE c.id = ct.column_id
    AND t.id = ct.table_id
    AND Array[c.id] <@ $2
    AND t.timespan = $3
    AND t.id in (SELECT id FROM geomref)
+
  '
  USING geometry_id, column_ids, timespan
  INTO result;
-
- RAISE NOTICE 'result %', result;
-
  RETURN result;
 
 END;
@@ -143,7 +141,7 @@ DECLARE
   column_id text;
   result text;
 BEGIN
-    EXECUTE format('select array_agg(column_id) from observatory.bmd_column_table where Array[colname] <@ $1  and table_id = %L limit 1', table_name)
+    EXECUTE format('select array_agg(column_id) from observatory.OBS_column_table where Array[colname] <@ $1  and table_id = %L limit 1', table_name)
     INTO result
     using column_names;
     RETURN result;
