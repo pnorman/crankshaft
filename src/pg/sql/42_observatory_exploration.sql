@@ -19,6 +19,26 @@ BEGIN
 END
 $$ LANGUAGE plpgsql;
 
+CREATE OR REPLACE FUNCTION OBS_Search_Tables(
+  search_term text
+)
+RETURNS TABLE(description text, name text, source text) As $$
+BEGIN
+  RETURN QUERY
+  EXECUTE format($string$
+                  SELECT
+                    description,
+                    id,
+                    replace(split_part(id,'".', 1),'"', '') As source
+                  FROM
+                    observatory.obs_table
+                  WHERE
+                    id ILIKE '%%%s%%'
+                $string$, search_term, search_term);
+  RETURN;
+END
+$$ LANGUAGE plpgsql;
+
 CREATE OR REPLACE FUNCTION OBS_LIST_DIMENSIONS_FOR_TABLE(table_name text )
 RETURNS TABLE(colname text) AS $$
 BEGIN
