@@ -19,23 +19,28 @@ BEGIN
 END
 $$ LANGUAGE plpgsql;
 
+-- return a table that contains a string
 CREATE OR REPLACE FUNCTION OBS_Search_Tables(
   search_term text
 )
-RETURNS TABLE(description text, name text, source text) As $$
+RETURNS text As $$
+DECLARE
+  out_var text;
 BEGIN
-  RETURN QUERY
   EXECUTE format($string$
-                  SELECT
-                    description,
-                    id,
-                    replace(split_part(id,'".', 1),'"', '') As source
-                  FROM
-                    observatory.obs_table
-                  WHERE
-                    id ILIKE '%%%s%%'
-                $string$, search_term, search_term);
-  RETURN;
+                 SELECT tab.tablename
+                 FROM observatory.obs_table As tab,
+                      observatory.obs_column_table As coltab,
+                      observatory.obs_column As col
+                 WHERE tab.id = coltab.table_id
+                   AND coltab.column_id = col.id
+                   AND col.name ilike '%%%s%%'
+                   AND col.type ilike 'geometry'
+                 LIMIT 1
+                $string$, search_term)
+  INTO out_var;
+
+  RETURN out_var;
 END
 $$ LANGUAGE plpgsql;
 
