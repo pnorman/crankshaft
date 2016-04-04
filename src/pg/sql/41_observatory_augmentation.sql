@@ -373,9 +373,10 @@ CREATE OR REPLACE FUNCTION OBS_Get_Census(
   geometry_level text DEFAULT '"us.census.tiger".block_group'
   )
 RETURNS numeric as $$
-
+DECLARE
+  result numeric;
 BEGIN
-  RETURN QUERY
+
   EXECUTE
   $query$
     SELECT * from OBS_GET_CENSUS(cdb_geocode_street_point($1), $2, $3, $4);
@@ -384,8 +385,10 @@ BEGIN
   address,
   dimension_name,
   time_span,
-  geometry_level;
-  RETURN;
+  geometry_level
+  INTO result;
+
+  RETURN result;
 END;
 $$ LANGUAGE plpgsql;
 
@@ -444,10 +447,8 @@ AS $$
 DECLARE
   ids text[];
 BEGIN
-
   ids  = OBS_LOOKUP_CENSUS_HUMAN(dimension_names);
   return query(select * from OBS_Get(geom, ids,time_span,geometry_level));
-
 END
 $$ LANGUAGE plpgsql ;
 
@@ -500,11 +501,7 @@ BEGIN
      RAISE EXCEPTION 'Point % is outside of the data region.', geom;
   end if;
 
-  data_table_info := (
-    with ids as( select unnest(column_ids) id)
-    select array_agg(OBS_GET_COLUMN_DATA(geometry_level, ids.id, time_span))
-    from ids
-  );
+  data_table_info = OBS_GET_COLUMN_DATA(geometry_level, column_ids, time_span);
 
   names  = (select array_agg((d).colname) from unnest(data_table_info) as  d );
 
