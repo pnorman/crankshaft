@@ -24,48 +24,51 @@
 
 CREATE OR REPLACE FUNCTION OBS_Get_Demographic_Snapshot(address text )
 RETURNS TABLE(
-gini_index Numeric,
-vacant_housing_units_for_rent Numeric,
-vacant_housing_units_for_Sale Numeric,
-commuters_by_Subway_or_Elevated Numeric,
-commuters_by_Public_Transportation Numeric,
-commuters_by_Bus Numeric,
-workers_over_the_age_of_16 Numeric,
-commuter_by_car_truck_or_van Numeric,
-walked_to_work Numeric,
-worked_at_Home Numeric,
-students_enrolled_in_Grades_1_to_4 Numeric,
-students_enrolled_in_School Numeric,
-students_enrolled_in_Grades_5_to_8 Numeric,
-students_enrolled_in_Grades_9_to_12 Numeric,
-students_enrolled_as_Undergraduate_in_College Numeric,
-population_3_years_and_over Numeric,
-vacant_housing_units Numeric,
-housing_units Numeric,
-owner_occupied_Housing_Units Numeric,
-owner_occupied_Housing_Units_valued_at_1_000_000_or_more Numeric,
-owner_occupied_Housing_Units_with_a_Mortgage Numeric,
-median_age Numeric,
-percent_of_household_income_spent_on_rent Numeric,
-children_under_18_years_of_age Numeric,
-population_Completed_Masters_Degree Numeric,
-population_25_Years_and_Over Numeric,
-population_Completed_High_School Numeric,
-population_Completed_Bachelors_Degree Numeric,
-households Numeric,
-total_population Numeric,
-male_population Numeric,
-white_population Numeric,
-black_or_african_american_population Numeric,
-asian_population Numeric,
-not_a_US_Citizen_Population Numeric,
-speaks_spanish_at_home Numeric,
-population_5_years_and_over Numeric,
-speaks_only_english_at_home Numeric,
-per_capita_income_in_the_past_12_months Numeric,
-median_Household_Income_in_the_past_12_Months Numeric,
-population_for_Whom_Poverty_Status_Determined Numeric,
-median_Rent Numeric)
+  total_pop NUMERIC,
+  male_pop NUMERIC,
+  female_pop NUMERIC,
+  median_age NUMERIC,
+  white_pop NUMERIC,
+  black_pop NUMERIC,
+  asian_pop NUMERIC,
+  hispanic_pop NUMERIC,
+  not_us_citizen_pop NUMERIC,
+  workers_16_and_over NUMERIC,
+  commuters_by_car_truck_van NUMERIC,
+  commuters_by_public_transportation NUMERIC,
+  commuters_by_bus NUMERIC,
+  commuters_by_subway_or_elevated NUMERIC,
+  walked_to_work NUMERIC,
+  worked_at_home NUMERIC,
+  children NUMERIC,
+  households NUMERIC,
+  population_3_years_over NUMERIC,
+  in_school NUMERIC,
+  in_grades_1_to_4 NUMERIC,
+  in_grades_5_to_8 NUMERIC,
+  in_grades_9_to_12 NUMERIC,
+  in_undergrad_college NUMERIC,
+  pop_25_years_over NUMERIC,
+  high_school_diploma NUMERIC,
+  bachelors_degree NUMERIC,
+  masters_degree NUMERIC,
+  pop_5_years_over NUMERIC,
+  speak_only_english_at_home NUMERIC,
+  speak_spanish_at_home NUMERIC,
+  pop_determined_poverty_status NUMERIC,
+  poverty NUMERIC,
+  median_income NUMERIC,
+  gini_index NUMERIC,
+  income_per_capita NUMERIC,
+  housing_units NUMERIC,
+  vacant_housing_units NUMERIC,
+  vacant_housing_units_for_rent NUMERIC,
+  vacant_housing_units_for_sale NUMERIC,
+  median_rent NUMERIC,
+  percent_income_spent_on_rent NUMERIC,
+  owner_occupied_housing_units NUMERIC,
+  million_dollar_housing_units NUMERIC,
+  mortgaged_housing_unit NUMERIC)
 AS $$
 DECLARE
  target_cols text[];
@@ -73,48 +76,51 @@ DECLARE
  vals numeric[];
  q text;
  BEGIN
- target_cols := Array['gini_index',
- 'vacant_housing_units_for_rent',
- 'vacant_housing_units_for_sale',
- 'commuters_by_subway_or_elevated',
- 'commuters_by_public_transportation',
- 'commuters_by_bus',
- 'workers_16_and_over',
- 'commuters_by_car_truck_van',
- 'walked_to_work',
- 'worked_at_home',
- 'in_grades_1_to_4',
- 'in_school',
- 'in_grades_5_to_8',
- 'in_grades_9_to_12',
- 'in_undergrad_college',
- 'population_3_years_over',
- 'vacant_housing_units',
- 'housing_units',
- 'owner_occupied_housing_units',
- 'million_dollar_housing_units',
- 'mortgaged_housing_units',
- 'median_age',
- 'percent_income_spent_on_rent',
- 'children',
- 'masters_degree',
- 'pop_25_years_over',
- 'high_school_diploma',
- 'bachelors_degree',
- 'households',
- 'total_pop',
+ target_cols := Array['total_pop',
  'male_pop',
+ 'female_pop',
+ 'median_age',
  'white_pop',
  'black_pop',
  'asian_pop',
+ 'hispanic_pop',
  'not_us_citizen_pop',
- 'speak_spanish_at_home',
+ 'workers_16_and_over',
+ 'commuters_by_car_truck_van',
+ 'commuters_by_public_transportation',
+ 'commuters_by_bus',
+ 'commuters_by_subway_or_elevated',
+ 'walked_to_work',
+ 'worked_at_home',
+ 'children',
+ 'households',
+ 'population_3_years_over',
+ 'in_school',
+ 'in_grades_1_to_4',
+ 'in_grades_5_to_8',
+ 'in_grades_9_to_12',
+ 'in_undergrad_college',
+ 'pop_25_years_over',
+ 'high_school_diploma',
+ 'bachelors_degree',
+ 'masters_degree',
  'pop_5_years_over',
  'speak_only_english_at_home',
- 'income_per_capita',
- 'median_income',
+ 'speak_spanish_at_home',
  'pop_determined_poverty_status',
- 'median_rent'];
+ 'poverty',
+ 'median_income',
+ 'gini_index',
+ 'income_per_capita',
+ 'housing_units',
+ 'vacant_housing_units',
+ 'vacant_housing_units_for_rent',
+ 'vacant_housing_units_for_sale',
+ 'median_rent',
+ 'percent_income_spent_on_rent',
+ 'owner_occupied_housing_units',
+ 'million_dollar_housing_units',
+ 'mortgaged_housing_unit'];
 
   RETURN QUERY
     EXECUTE
@@ -124,53 +130,56 @@ DECLARE
     USING address;
   RETURN;
 END
-$$ LANGUAGE plpgsql
+$$ LANGUAGE plpgsql;
 
 
-CREATE OR REPLACE FUNCTION OBS_Get_Demographic_Snapshot(geom GEOMETRY)
+CREATE OR REPLACE FUNCTION OBS_Get_Demographic_Snapshot(geom geometry)
 RETURNS TABLE(
-gini_index Numeric,
-vacant_housing_units_for_rent Numeric,
-vacant_housing_units_for_Sale Numeric,
-commuters_by_Subway_or_Elevated Numeric,
-commuters_by_Public_Transportation Numeric,
-commuters_by_Bus Numeric,
-workers_over_the_age_of_16 Numeric,
-commuter_by_car_truck_or_van Numeric,
-walked_to_work Numeric,
-worked_at_Home Numeric,
-students_enrolled_in_Grades_1_to_4 Numeric,
-students_enrolled_in_School Numeric,
-students_enrolled_in_Grades_5_to_8 Numeric,
-students_enrolled_in_Grades_9_to_12 Numeric,
-students_enrolled_as_Undergraduate_in_College Numeric,
-population_3_years_and_over Numeric,
-vacant_housing_units Numeric,
-housing_units Numeric,
-owner_occupied_Housing_Units Numeric,
-owner_occupied_Housing_Units_valued_at_1_000_000_or_more Numeric,
-owner_occupied_Housing_Units_with_a_Mortgage Numeric,
-median_age Numeric,
-percent_of_household_income_spent_on_rent Numeric,
-children_under_18_years_of_age Numeric,
-population_Completed_Masters_Degree Numeric,
-population_25_Years_and_Over Numeric,
-population_Completed_High_School Numeric,
-population_Completed_Bachelors_Degree Numeric,
-households Numeric,
-total_population Numeric,
-male_population Numeric,
-white_population Numeric,
-black_or_african_american_population Numeric,
-asian_population Numeric,
-not_a_US_Citizen_Population Numeric,
-speaks_spanish_at_home Numeric,
-population_5_years_and_over Numeric,
-speaks_only_english_at_home Numeric,
-per_capita_income_in_the_past_12_months Numeric,
-median_Household_Income_in_the_past_12_Months Numeric,
-population_for_Whom_Poverty_Status_Determined Numeric,
-median_Rent Numeric)
+  total_pop NUMERIC,
+  male_pop NUMERIC,
+  female_pop NUMERIC,
+  median_age NUMERIC,
+  white_pop NUMERIC,
+  black_pop NUMERIC,
+  asian_pop NUMERIC,
+  hispanic_pop NUMERIC,
+  not_us_citizen_pop NUMERIC,
+  workers_16_and_over NUMERIC,
+  commuters_by_car_truck_van NUMERIC,
+  commuters_by_public_transportation NUMERIC,
+  commuters_by_bus NUMERIC,
+  commuters_by_subway_or_elevated NUMERIC,
+  walked_to_work NUMERIC,
+  worked_at_home NUMERIC,
+  children NUMERIC,
+  households NUMERIC,
+  population_3_years_over NUMERIC,
+  in_school NUMERIC,
+  in_grades_1_to_4 NUMERIC,
+  in_grades_5_to_8 NUMERIC,
+  in_grades_9_to_12 NUMERIC,
+  in_undergrad_college NUMERIC,
+  pop_25_years_over NUMERIC,
+  high_school_diploma NUMERIC,
+  bachelors_degree NUMERIC,
+  masters_degree NUMERIC,
+  pop_5_years_over NUMERIC,
+  speak_only_english_at_home NUMERIC,
+  speak_spanish_at_home NUMERIC,
+  pop_determined_poverty_status NUMERIC,
+  poverty NUMERIC,
+  median_income NUMERIC,
+  gini_index NUMERIC,
+  income_per_capita NUMERIC,
+  housing_units NUMERIC,
+  vacant_housing_units NUMERIC,
+  vacant_housing_units_for_rent NUMERIC,
+  vacant_housing_units_for_sale NUMERIC,
+  median_rent NUMERIC,
+  percent_income_spent_on_rent NUMERIC,
+  owner_occupied_housing_units NUMERIC,
+  million_dollar_housing_units NUMERIC,
+  mortgaged_housing_unit NUMERIC)
 AS $$
 DECLARE
  target_cols text[];
@@ -178,63 +187,62 @@ DECLARE
  vals numeric[];
  q text;
  BEGIN
- target_cols := Array['gini_index',
- 'vacant_housing_units_for_rent',
- 'vacant_housing_units_for_sale',
- 'commuters_by_subway_or_elevated',
- 'commuters_by_public_transportation',
- 'commuters_by_bus',
- 'workers_16_and_over',
- 'commuters_by_car_truck_van',
- 'walked_to_work',
- 'worked_at_home',
- 'in_grades_1_to_4',
- 'in_school',
- 'in_grades_5_to_8',
- 'in_grades_9_to_12',
- 'in_undergrad_college',
- 'population_3_years_over',
- 'vacant_housing_units',
- 'housing_units',
- 'owner_occupied_housing_units',
- 'million_dollar_housing_units',
- 'mortgaged_housing_units',
- 'median_age',
- 'percent_income_spent_on_rent',
- 'children',
- 'masters_degree',
- 'pop_25_years_over',
- 'high_school_diploma',
- 'bachelors_degree',
- 'households',
- 'total_pop',
+ target_cols := Array['total_pop',
  'male_pop',
+ 'female_pop',
+ 'median_age',
  'white_pop',
  'black_pop',
  'asian_pop',
+ 'hispanic_pop',
  'not_us_citizen_pop',
- 'speak_spanish_at_home',
+ 'workers_16_and_over',
+ 'commuters_by_car_truck_van',
+ 'commuters_by_public_transportation',
+ 'commuters_by_bus',
+ 'commuters_by_subway_or_elevated',
+ 'walked_to_work',
+ 'worked_at_home',
+ 'children',
+ 'households',
+ 'population_3_years_over',
+ 'in_school',
+ 'in_grades_1_to_4',
+ 'in_grades_5_to_8',
+ 'in_grades_9_to_12',
+ 'in_undergrad_college',
+ 'pop_25_years_over',
+ 'high_school_diploma',
+ 'bachelors_degree',
+ 'masters_degree',
  'pop_5_years_over',
  'speak_only_english_at_home',
- 'income_per_capita',
- 'median_income',
+ 'speak_spanish_at_home',
  'pop_determined_poverty_status',
- 'median_rent'];
-
-  RAISE NOTICE 'starting: %', timeofday();
+ 'poverty',
+ 'median_income',
+ 'gini_index',
+ 'income_per_capita',
+ 'housing_units',
+ 'vacant_housing_units',
+ 'vacant_housing_units_for_rent',
+ 'vacant_housing_units_for_sale',
+ 'median_rent',
+ 'percent_income_spent_on_rent',
+ 'owner_occupied_housing_units',
+ 'million_dollar_housing_units',
+ 'mortgaged_housing_unit'];
 
   q = OBS_BUILD_SNAPSHOT_QUERY(target_cols);
   q = 'with a as (select colnames as names, colvalues as vals from OBS_Get_CENSUS($1,$2))' || q || ' from  a';
-  RAISE NOTICE 'Ending : %', timeofday();
 
-  RAISE NOTICE  "query: %", q
   RETURN QUERY
   EXECUTE
   q
   using geom, target_cols
   RETURN;
 END
-$$ LANGUAGE plpgsql
+$$ LANGUAGE plpgsql;
 
 
 --Creates a table with the young family segment.
@@ -262,7 +270,7 @@ RETURN QUERY
   USING address;
 RETURN;
 END
-$$ LANGUAGE plpgsql
+$$ LANGUAGE plpgsql;
 
 CREATE OR REPLACE FUNCTION OBS_GET_FAMILIES_WITH_YOUNG_CHILDREN_SEGMENT(the_geom geometry)
 RETURNS TABLE (
@@ -301,7 +309,7 @@ BEGIN
   using the_geom, segment_name
   RETURN;
 END
-$$ LANGUAGE plpgsql
+$$ LANGUAGE plpgsql;
 
 --Base functions for performing augmentation
 ----------------------------------------------------------------------------------------
@@ -327,7 +335,7 @@ BEGIN
   geometry_level;
   RETURN;
 END
-$$ LANGUAGE plpgsql
+$$ LANGUAGE plpgsql;
 
 
 
@@ -362,7 +370,7 @@ BEGIN
     USING geom, column_ids, time_span, geometry_level
   RETURN;
 END
-$$ LANGUAGE plpgsql
+$$ LANGUAGE plpgsql;
 
 
 --Grabs the value of a census dimension for given a point or geometry.
@@ -374,9 +382,10 @@ CREATE OR REPLACE FUNCTION OBS_Get_Census(
   geometry_level text DEFAULT '"us.census.tiger".block_group'
   )
 RETURNS numeric as $$
-
+DECLARE
+  result numeric;
 BEGIN
-  RETURN QUERY
+
   EXECUTE
   $query$
     SELECT * from OBS_GET_CENSUS(cdb_geocode_street_point($1), $2, $3, $4);
@@ -385,8 +394,10 @@ BEGIN
   address,
   dimension_name,
   time_span,
-  geometry_level;
-  RETURN;
+  geometry_level
+  INTO result;
+
+  RETURN result;
 END;
 $$ LANGUAGE plpgsql;
 
@@ -447,8 +458,8 @@ DECLARE
 BEGIN
 
   ids  = OBS_LOOKUP_CENSUS_HUMAN(dimension_names);
-  return query(select * from OBS_Get(geom, ids,time_span,geometry_level));
 
+  return query(select * from OBS_Get(geom, ids,time_span,geometry_level));
 END
 $$ LANGUAGE plpgsql ;
 
@@ -492,6 +503,7 @@ DECLARE
 	results numeric[];
   geom_table_name text;
   names         text[];
+  q             text;
   data_table_info OBS_COLUMN_DATA[];
 BEGIN
 
@@ -501,12 +513,7 @@ BEGIN
      RAISE EXCEPTION 'Point % is outside of the data region.', geom;
   end if;
 
-  data_table_info := (
-    with ids as( select unnest(column_ids) id)
-    select array_agg(OBS_GET_COLUMN_DATA(geometry_level, ids.id, time_span))
-    from ids
-  );
-
+  data_table_info = OBS_GET_COLUMN_DATA(geometry_level, column_ids, time_span);
   names  = (select array_agg((d).colname) from unnest(data_table_info) as  d );
 
   IF ST_GeometryType(geom) = 'ST_Point' then
@@ -521,7 +528,7 @@ BEGIN
 
   return query (select  names, results) ;
 END;
-$$  LANGUAGE plpgsql
+$$  LANGUAGE plpgsql;
 
 
 -- IF the variable of interest is just a rate return it as such, othewise normalize
