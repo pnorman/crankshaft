@@ -97,6 +97,11 @@ BEGIN
   $string$, geometry_level
 ) INTO geoid_colname, target_table, geom_colname;
 
+  IF target_table IS NULL
+  THEN
+    RAISE EXCEPTION 'No geometries found';
+  END IF;
+
 
   EXECUTE format(
     'SELECT t.%s
