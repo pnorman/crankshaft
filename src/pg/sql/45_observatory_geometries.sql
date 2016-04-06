@@ -8,8 +8,7 @@
 
 CREATE OR REPLACE FUNCTION OBS_Get_Geometry(
   geom geometry(Geometry, 4326),
-  geometry_level text DEFAULT 'tract', -- TODO: from a specified column id list (e.g., list of available catalog)
-  use_literal boolean DEFAULT false, -- TODO: DROP THIS
+  geometry_level text DEFAULT '"us.census.tiger".tract', -- TODO: from a specified column id list (e.g., list of available catalog)
   time_span text DEFAULT '2009 - 2013')
   RETURNS geometry(Geometry, 4326)
 AS $$
@@ -27,24 +26,20 @@ BEGIN
     RAISE EXCEPTION 'Invalid geometry type (%), expecting ''ST_Point''', ST_GeometryType(geom);
   END IF;
 
-  IF use_literal
+  target_table_list := OBS_Search_Tables(geometry_level, time_span);
+
+  -- if no tables are found, raise error
+  IF array_length(target_table_list, 1) IS NULL
   THEN
-    target_table := geometry_level;
+    RAISE EXCEPTION 'No boundaries found for ''%'' ''%''', ST_AsText(geom), geometry_level;
   ELSE
-    target_table_list := OBS_Search_Tables(geometry_level, time_span);
-
-    -- if no tables are found, raise error
-    IF array_length(target_table_list, 1) IS NULL
-    THEN
-      RAISE EXCEPTION 'No boundaries found for ''%''', geometry_level;
-    ELSE
-    -- else, choose first result
-      target_table = target_table_list[1];
-    END IF;
-
-    RAISE NOTICE 'target_table: %', target_table;
+  -- else, choose first result
+    target_table = target_table_list[1];
   END IF;
 
+  RAISE NOTICE 'target_table: %', target_table;
+
+  -- return the first boundary in intersections
   EXECUTE format(
     'SELECT t.the_geom
      FROM observatory.%s As t
@@ -58,7 +53,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
--- TODO:
+-- TODO: add OBS_Get_Geometry_By_Address
 
 CREATE OR REPLACE FUNCTION OBS_Get_Geometry(
   geom_ref text,      -- ex: '36047'
@@ -94,15 +89,15 @@ BEGIN
           geom_t.id = geom_ct.table_id and
           geom_ct.column_id = geom_c.id and
           geom_c.type ilike 'geometry'
-  $string$, geometry_level
-) INTO geoid_colname, target_table, geom_colname;
+    $string$, geometry_level
+  ) INTO geoid_colname, target_table, geom_colname;
 
   IF target_table IS NULL
   THEN
     RAISE EXCEPTION 'No geometries found';
   END IF;
 
-
+  -- retrieve boundary
   EXECUTE format(
     'SELECT t.%s
      FROM observatory.%s As t

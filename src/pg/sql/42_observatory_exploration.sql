@@ -1,9 +1,9 @@
---Functions use to search the observatroy for information
+-- Functions used to search the observatory for information
 --------------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION OBS_SEARCH(
   search_term text
 )
-RETURNS TABLE(description text, name text, aggregate text,source text )  as $$
+RETURNS TABLE(description text, name text, aggregate text, source text)  as $$
 BEGIN
   RETURN QUERY
   EXECUTE format($string$
@@ -19,16 +19,19 @@ BEGIN
 END
 $$ LANGUAGE plpgsql;
 
--- return a table that contains a string
+-- return a table that contains a string match based on input
+-- TODO: implement search for timespan
 CREATE OR REPLACE FUNCTION OBS_Search_Tables(
-  search_term text
+  search_term text,
+  time_span text DEFAULT '2009 - 2013'
 )
-RETURNS text As $$
+RETURNS text[]
+As $$
 DECLARE
   out_var text;
 BEGIN
   EXECUTE format($string$
-                 SELECT tab.tablename
+                 SELECT array_agg(tab.tablename)
                  FROM observatory.obs_table As tab,
                       observatory.obs_column_table As coltab,
                       observatory.obs_column As col
@@ -36,12 +39,12 @@ BEGIN
                    AND coltab.column_id = col.id
                    AND col.name ilike '%%%s%%'
                    AND col.type ilike 'geometry'
-                 LIMIT 1
-                $string$, search_term)
+                   AND tab.timespan = '%s'
+                $string$, search_term, time_span)
   INTO out_var;
 
   RETURN out_var;
-END
+END;
 $$ LANGUAGE plpgsql;
 
 CREATE OR REPLACE FUNCTION OBS_LIST_DIMENSIONS_FOR_TABLE(table_name text )
