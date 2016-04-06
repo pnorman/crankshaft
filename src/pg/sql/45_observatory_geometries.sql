@@ -8,8 +8,8 @@
 
 CREATE OR REPLACE FUNCTION OBS_Get_Geometry(
   geom geometry(Geometry, 4326),
-  geometry_level text DEFAULT 'observatory.obs_a6b7e2e5de1ba72555fa54c8bf3ecc717d6161b4',
-  use_literal boolean DEFAULT false,
+  geometry_level text DEFAULT 'tract', -- TODO: from a specified column id list (e.g., list of available catalog)
+  use_literal boolean DEFAULT false, -- TODO: DROP THIS
   time_span text DEFAULT '2009 - 2013')
   RETURNS geometry(Geometry, 4326)
 AS $$
@@ -52,6 +52,58 @@ BEGIN
      LIMIT 1', target_table)
   INTO boundary
   USING geom;
+
+  RETURN boundary;
+
+END;
+$$ LANGUAGE plpgsql;
+
+-- TODO:
+
+CREATE OR REPLACE FUNCTION OBS_Get_Geometry(
+  geom_ref text,      -- ex: '36047'
+  geometry_level text -- ex: '"us.census.tiger".county'
+)
+RETURNS geometry(geometry, 4326)
+AS $$
+DECLARE
+  boundary geometry;
+  target_table text;
+  geoid_colname text;
+  geom_colname text;
+BEGIN
+
+  EXECUTE
+  format(
+    $string$
+    SELECT geoid_ct.colname As geoid_colname,
+           tablename,
+           geom_ct.colname As geom_colname
+    FROM observatory.obs_column_table As geoid_ct,
+         observatory.obs_table As geom_t,
+         observatory.obs_column_table As geom_ct,
+         observatory.obs_column As geom_c
+    WHERE geoid_ct.column_id
+       IN (
+         SELECT source_id
+         FROM observatory.obs_column_to_column
+         WHERE reltype = 'geom_ref'
+           AND target_id = '%s'
+         )
+      AND geoid_ct.table_id = geom_t.id and
+          geom_t.id = geom_ct.table_id and
+          geom_ct.column_id = geom_c.id and
+          geom_c.type ilike 'geometry'
+  $string$, geometry_level
+) INTO geoid_colname, target_table, geom_colname;
+
+
+  EXECUTE format(
+    'SELECT t.%s
+     FROM observatory.%s As t
+     WHERE t.%s = ''%s''
+     LIMIT 1', geom_colname, target_table, geoid_colname, geom_ref)
+  INTO boundary;
 
   RETURN boundary;
 
